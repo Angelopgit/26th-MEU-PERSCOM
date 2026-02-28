@@ -4,11 +4,11 @@
   "description": "PERSCOM Management System - 26th MEU (SOC)",
   "main": "src/server.js",
   "scripts": {
-    "start": "node --no-warnings src/server.js",
+    "start": "node --no-warnings --experimental-sqlite src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node --no-warnings src/db/seed.js",
     "build:frontend": "cd ../frontend && npm run build",
-    "deploy": "npm run build:frontend && cross-env NODE_ENV=production node --no-warnings src/server.js"
+    "deploy": "npm run build:frontend && cross-env NODE_ENV=production node --no-warnings --experimental-sqlite src/server.js"
   },
   "nodemonConfig": {
     "nodeArgs": [
