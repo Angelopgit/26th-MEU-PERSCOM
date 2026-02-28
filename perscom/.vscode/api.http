@@ -1,0 +1,129 @@
+### PERSCOM API — REST Client test file
+### Install "REST Client" extension (humao.rest-client) to run these
+### Click "Send Request" above each block
+
+@base = http://localhost:3001/api
+@admin_token = PASTE_TOKEN_HERE_AFTER_LOGIN
+
+### ── Auth ──────────────────────────────────────────────────────────────────
+
+### Login as Admin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "command",
+  "password": "Admin@1234"
+}
+
+###
+
+### Login as Moderator
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "drillsgt",
+  "password": "Mod@1234"
+}
+
+###
+
+### Health Check
+GET {{base}}/health
+
+### ── Dashboard ───────────────────────────────────────────────────────────────
+
+### Dashboard Stats
+GET {{base}}/dashboard/stats
+Authorization: Bearer {{admin_token}}
+
+### ── Personnel ───────────────────────────────────────────────────────────────
+
+### List All Personnel
+GET {{base}}/personnel
+Authorization: Bearer {{admin_token}}
+
+###
+
+### List Marines Only
+GET {{base}}/personnel?status=Marine
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Search Personnel
+GET {{base}}/personnel?search=Hartley
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Add Personnel
+POST {{base}}/personnel
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "name": "Test Marine",
+  "status": "Marine",
+  "rank": "Private",
+  "date_of_entry": "2026-02-24"
+}
+
+### ── Evaluations ─────────────────────────────────────────────────────────────
+
+### Evaluation Status (all Marines)
+GET {{base}}/evaluations/status
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Submit Evaluation
+POST {{base}}/evaluations
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "personnel_id": 1,
+  "behavior_meets": true,
+  "attendance_met": true,
+  "notes": "Performed well this cycle."
+}
+
+### ── Operations ──────────────────────────────────────────────────────────────
+
+### List All Operations
+GET {{base}}/operations
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Create Operation
+POST {{base}}/operations
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "title": "Operation Iron Curtain",
+  "description": "Test operation for development.",
+  "start_date": "2026-03-01",
+  "end_date": "2026-03-07"
+}
+
+### ── Announcements ───────────────────────────────────────────────────────────
+
+### Latest Announcement
+GET {{base}}/announcements/latest
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Post Announcement
+POST {{base}}/announcements
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "title": "TEST ANNOUNCEMENT",
+  "message": "This is a test announcement from the REST client."
+}

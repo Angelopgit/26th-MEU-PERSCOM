@@ -1,0 +1,34 @@
+{
+  "folders": [
+    {
+      "name": "PERSCOM — Root",
+      "path": "."
+    },
+    {
+      "name": "Backend (Node.js)",
+      "path": "./backend"
+    },
+    {
+      "name": "Frontend (React)",
+      "path": "./frontend"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.git": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss",
+      "dsznajder.es7-react-js-snippets",
+      "qwtel.sqlite-viewer",
+      "humao.rest-client",
+      "usernamehw.errorlens",
+      "eamodio.gitlens"
+    ]
+  }
+}

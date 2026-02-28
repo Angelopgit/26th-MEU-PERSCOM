@@ -1,0 +1,33 @@
+{
+  "recommendations": [
+    // Core
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+
+    // React & JavaScript
+    "dsznajder.es7-react-js-snippets",
+    "burkeholland.simple-react-snippets",
+    "xabikos.javascriptsnippets",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Node / Backend
+    "christian-kohler.npm-intellisense",
+    "eg2.vscode-npm-script",
+
+    // SQLite viewer (browse the database)
+    "qwtel.sqlite-viewer",
+
+    // REST client (test API endpoints directly in VS Code)
+    "humao.rest-client",
+
+    // Git
+    "eamodio.gitlens",
+
+    // UI / Productivity
+    "PKief.material-icon-theme",
+    "usernamehw.errorlens",
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

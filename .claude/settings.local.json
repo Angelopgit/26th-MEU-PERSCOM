@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 5 node src/server.js)",
+      "Bash(node src/db/seed.js)",
+      "Bash(node --no-warnings src/db/seed.js)",
+      "Bash(npm install multer@1.4.5-lts.1 --save)"
+    ]
+  }
+}
