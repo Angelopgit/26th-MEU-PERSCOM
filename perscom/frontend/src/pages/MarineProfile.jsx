@@ -102,7 +102,7 @@ function AddQualModal({ person, onClose, onAdded }) {
 
 export default function MarineProfile() {
   const { id } = useParams();
-  const { isAdmin } = useAuth();
+  const { isAdmin, canEdit } = useAuth();
   const [person, setPerson] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddQual, setShowAddQual] = useState(false);
@@ -162,6 +162,11 @@ export default function MarineProfile() {
   const memberStatusBadge = MEMBER_STATUS_STYLES[memberStatus] || 'badge-muted';
   const displayEvals = evalsExpanded ? person.evaluations : person.evaluations?.slice(0, 3);
 
+  // Discord avatar URL
+  const discordAvatarUrl = person.discord?.discord_avatar
+    ? `https://cdn.discordapp.com/avatars/${person.discord.discord_id}/${person.discord.discord_avatar}.png?size=128`
+    : null;
+
   return (
     <div className="max-w-4xl space-y-5">
       {/* Back nav */}
@@ -176,8 +181,12 @@ export default function MarineProfile() {
       <div className="card p-6">
         <div className="flex items-start gap-5">
           {/* Avatar */}
-          <div className="w-16 h-16 bg-[#3b82f6]/10 border border-[#3b82f6]/25 rounded-sm flex items-center justify-center shrink-0">
-            <Shield size={24} className="text-[#3b82f6]" />
+          <div className="w-16 h-16 bg-[#3b82f6]/10 border border-[#3b82f6]/25 rounded-sm flex items-center justify-center shrink-0 overflow-hidden">
+            {discordAvatarUrl ? (
+              <img src={discordAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <Shield size={24} className="text-[#3b82f6]" />
+            )}
           </div>
 
           <div className="flex-1 min-w-0">
@@ -196,6 +205,30 @@ export default function MarineProfile() {
             <div className="text-[#1a2f55] text-xs font-mono mt-1 tracking-widest">
               26TH MEU (SOC) — {person.status.toUpperCase()}
             </div>
+
+            {/* Discord profile section */}
+            {person.discord && (
+              <div className="flex items-center gap-3 mt-3 pt-3 border-t border-[#162448]">
+                {discordAvatarUrl && (
+                  <img
+                    src={discordAvatarUrl}
+                    alt="Discord avatar"
+                    className="w-8 h-8 rounded-full border border-[#162448]"
+                  />
+                )}
+                <div>
+                  <div className="text-[#dbeafe] text-xs font-medium flex items-center gap-1.5">
+                    <svg width="12" height="9" viewBox="0 0 71 55" fill="#5865F2">
+                      <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37 37 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9 .2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.5 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.2.1A58.6 58.6 0 0070.3 45.6v-.1C71.8 30.1 67.9 16.7 60.2 5a.2.2 0 00-.1-.1zM23.7 37.3c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 4-2.8 7.2-6.4 7.2zm23.7 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 4-2.8 7.2-6.4 7.2z"/>
+                    </svg>
+                    {person.discord.discord_username}
+                  </div>
+                  <div className="text-[#1a2f55] text-[9px] font-mono">
+                    ID: {person.discord.discord_id}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -256,14 +289,16 @@ export default function MarineProfile() {
             <span className="ml-auto text-[#1a2f55] text-xs font-mono">
               {person.qualifications?.length || 0}
             </span>
-            {/* Both roles can add quals */}
-            <button
-              onClick={() => setShowAddQual(true)}
-              className="ml-2 text-[#2a4a80] hover:text-[#60a5fa] transition-colors"
-              title="Add qualification"
-            >
-              <Plus size={13} />
-            </button>
+            {/* Staff can add quals */}
+            {canEdit && (
+              <button
+                onClick={() => setShowAddQual(true)}
+                className="ml-2 text-[#2a4a80] hover:text-[#60a5fa] transition-colors"
+                title="Add qualification"
+              >
+                <Plus size={13} />
+              </button>
+            )}
           </div>
           {!person.qualifications?.length ? (
             <div className="px-4 py-6 text-[#1a2f55] text-xs font-mono text-center">NO QUALIFICATIONS ON RECORD</div>
@@ -279,13 +314,15 @@ export default function MarineProfile() {
                       {q.awarded_by_name && ` · ${q.awarded_by_name}`}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveQual(q.id)}
-                    disabled={removingQual === q.id}
-                    className="text-[#2a4a80] hover:text-red-400 transition-colors p-1 opacity-0 group-hover:opacity-100"
-                  >
-                    {removingQual === q.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => handleRemoveQual(q.id)}
+                      disabled={removingQual === q.id}
+                      className="text-[#2a4a80] hover:text-red-400 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                    >
+                      {removingQual === q.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

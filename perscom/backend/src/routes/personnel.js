@@ -1,6 +1,8 @@
 const express = require('express');
 const { getDb } = require('../config/database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { logActivity } = require('../utils/logActivity');
+const { syncRankToDiscord } = require('../discord/sync');
 
 const router = express.Router();
 
@@ -75,7 +77,7 @@ router.get('/', authenticate, (req, res) => {
   res.json(result);
 });
 
-// Get single personnel with full details
+// Get single personnel with full details + Discord profile
 router.get('/:id', authenticate, (req, res) => {
   const db = getDb();
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
@@ -97,7 +99,18 @@ router.get('/:id', authenticate, (req, res) => {
     ORDER BY e.evaluated_at DESC
   `).all(person.id);
 
-  res.json({ ...person, awards, qualifications, evaluations });
+  // Fetch linked Discord profile
+  const linkedUser = db.prepare(
+    'SELECT discord_id, discord_username, discord_avatar FROM users WHERE personnel_id = ?'
+  ).get(person.id);
+
+  res.json({
+    ...person,
+    awards,
+    qualifications,
+    evaluations,
+    discord: linkedUser || null,
+  });
 });
 
 // Create personnel
@@ -123,7 +136,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     ms
   );
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
+  logActivity(
     'PERSONNEL_ADDED',
     `${name} added as ${status || 'Civilian'}${rank ? ` (${rank})` : ''}`,
     req.user.id
@@ -159,11 +172,15 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
     const oldRankIdx = RANKS.indexOf(person.rank);
     const newRankIdx = RANKS.indexOf(newRank);
     const action = newRankIdx > oldRankIdx ? 'PROMOTED' : 'DEMOTED';
-    db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-      action,
-      `${person.name}: ${person.rank || 'N/A'} → ${newRank || 'N/A'}`,
-      req.user.id
-    );
+    logActivity(action, `${person.name}: ${person.rank || 'N/A'} → ${newRank || 'N/A'}`, req.user.id);
+
+    // Sync Discord roles if the marine has a linked Discord account
+    const linkedUser = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
+    if (linkedUser?.discord_id) {
+      syncRankToDiscord(linkedUser.discord_id, person.rank, newRank).catch(err => {
+        console.error('[SYNC] Discord role sync failed:', err.message);
+      });
+    }
   }
 
   res.json(getPersonWithDetails(db, req.params.id));
@@ -184,11 +201,7 @@ router.patch('/:id/member-status', authenticate, (req, res) => {
     'UPDATE personnel SET member_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(member_status, req.params.id);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'STATUS_CHANGED',
-    `${person.name}: ${person.member_status} → ${member_status}`,
-    req.user.id
-  );
+  logActivity('STATUS_CHANGED', `${person.name}: ${person.member_status} → ${member_status}`, req.user.id);
 
   res.json({ success: true, member_status });
 });
@@ -200,11 +213,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
 
   db.prepare('DELETE FROM personnel WHERE id = ?').run(req.params.id);
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'PERSONNEL_REMOVED',
-    `${person.name} removed from roster`,
-    req.user.id
-  );
+  logActivity('PERSONNEL_REMOVED', `${person.name} removed from roster`, req.user.id);
 
   res.json({ success: true });
 });
@@ -228,11 +237,15 @@ router.post('/:id/promote', authenticate, requireAdmin, (req, res) => {
     'UPDATE personnel SET rank = ?, rank_since = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(newRank, today, req.params.id);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'PROMOTED',
-    `${person.name}: ${person.rank} → ${newRank}`,
-    req.user.id
-  );
+  logActivity('PROMOTED', `${person.name}: ${person.rank} → ${newRank}`, req.user.id);
+
+  // Sync Discord roles
+  const linkedUser = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUser?.discord_id) {
+    syncRankToDiscord(linkedUser.discord_id, person.rank, newRank).catch(err => {
+      console.error('[SYNC] Discord role sync failed:', err.message);
+    });
+  }
 
   res.json(getPersonWithDetails(db, req.params.id));
 });
@@ -254,11 +267,15 @@ router.post('/:id/demote', authenticate, requireAdmin, (req, res) => {
     'UPDATE personnel SET rank = ?, rank_since = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(newRank, today, req.params.id);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'DEMOTED',
-    `${person.name}: ${person.rank} → ${newRank}`,
-    req.user.id
-  );
+  logActivity('DEMOTED', `${person.name}: ${person.rank} → ${newRank}`, req.user.id);
+
+  // Sync Discord roles
+  const linkedUser = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUser?.discord_id) {
+    syncRankToDiscord(linkedUser.discord_id, person.rank, newRank).catch(err => {
+      console.error('[SYNC] Discord role sync failed:', err.message);
+    });
+  }
 
   res.json(getPersonWithDetails(db, req.params.id));
 });
@@ -276,11 +293,7 @@ router.post('/:id/awards', authenticate, requireAdmin, (req, res) => {
     'INSERT INTO awards (personnel_id, name, awarded_at) VALUES (?, ?, ?)'
   ).run(req.params.id, name.trim(), awarded_at || new Date().toISOString().split('T')[0]);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'AWARD_GRANTED',
-    `${person.name} awarded ${name}`,
-    req.user.id
-  );
+  logActivity('AWARD_GRANTED', `${person.name} awarded ${name}`, req.user.id);
 
   const award = db.prepare('SELECT * FROM awards WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(award);
@@ -329,11 +342,7 @@ router.post('/:id/qualifications', authenticate, (req, res) => {
     req.user.display_name
   );
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'QUALIFICATION_ADDED',
-    `${person.name} qualified: ${name}`,
-    req.user.id
-  );
+  logActivity('QUALIFICATION_ADDED', `${person.name} qualified: ${name}`, req.user.id);
 
   const qual = db.prepare('SELECT * FROM qualifications WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(qual);

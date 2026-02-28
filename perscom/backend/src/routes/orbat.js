@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { logActivity } = require('../utils/logActivity');
 
 const router = express.Router();
 
@@ -42,11 +43,9 @@ router.post('/assign', authenticate, (req, res) => {
     slotId
   );
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
+  logActivity(
     'ORBAT_ASSIGNED',
-    person
-      ? `${person.name} assigned to ${slot.name}`
-      : `${slot.name} slot cleared`,
+    person ? `${person.name} assigned to ${slot.name}` : `${slot.name} slot cleared`,
     req.user.id
   );
 
@@ -68,11 +67,7 @@ router.delete('/assign/:slotId', authenticate, (req, res) => {
 
   db.prepare('UPDATE orbat_slots SET personnel_id = NULL WHERE id = ?').run(req.params.slotId);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'ORBAT_ASSIGNED',
-    `${slot.name} slot cleared`,
-    req.user.id
-  );
+  logActivity('ORBAT_ASSIGNED', `${slot.name} slot cleared`, req.user.id);
 
   res.json({ success: true });
 });

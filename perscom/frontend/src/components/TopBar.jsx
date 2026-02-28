@@ -11,6 +11,7 @@ const PAGE_TITLES = {
   '/roster':      'Order of Battle',
   '/eventlog':    'Event Log',
   '/settings':    'System Settings',
+  '/documents':   'Unit Documents',
 };
 
 export default function TopBar() {

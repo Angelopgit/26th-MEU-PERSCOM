@@ -1,0 +1,10 @@
+Options -MultiViews
+RewriteEngine On
+RewriteBase /perscom/
+
+# Serve existing files and directories directly
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Route everything else through index.html for React Router
+RewriteRule ^ index.html [L]

@@ -4,6 +4,7 @@ const fs = require('fs');
 const { getDb } = require('../config/database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { logActivity } = require('../utils/logActivity');
 
 const router = express.Router();
 
@@ -39,11 +40,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     'INSERT INTO operations (title, description, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?)'
   ).run(title.trim(), description || null, start_date, end_date || null, req.user.id);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'OPERATION_CREATED',
-    `Operation: ${title}`,
-    req.user.id
-  );
+  logActivity('OPERATION_CREATED', `Operation: ${title}`, req.user.id);
 
   res.status(201).json(getOpWithCreator(db, result.lastInsertRowid));
 });
@@ -98,11 +95,7 @@ router.post('/:id/image', authenticate, requireAdmin, upload.single('image'), (r
   const imageUrl = `/uploads/${req.file.filename}`;
   db.prepare('UPDATE operations SET image_url = ? WHERE id = ?').run(imageUrl, req.params.id);
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'OPERATION_UPDATED',
-    `Image added to: ${op.title}`,
-    req.user.id
-  );
+  logActivity('OPERATION_UPDATED', `Image added to: ${op.title}`, req.user.id);
 
   res.json({ image_url: imageUrl });
 });

@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { logActivity } = require('../utils/logActivity');
 
 const router = express.Router();
 
@@ -77,11 +78,7 @@ router.post('/', authenticate, (req, res) => {
     notes || null
   );
 
-  db.prepare('INSERT INTO activity_log (action, details, user_id) VALUES (?, ?, ?)').run(
-    'EVALUATION_CONDUCTED',
-    `Evaluated ${person.name}`,
-    req.user.id
-  );
+  logActivity('EVALUATION_CONDUCTED', `Evaluated ${person.name}`, req.user.id);
 
   const evaluation = db.prepare(`
     SELECT e.*, p.name as personnel_name, u.display_name as evaluator_name

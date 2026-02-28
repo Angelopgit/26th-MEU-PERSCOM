@@ -46,4 +46,16 @@ router.delete('/logo', authenticate, requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/settings/sync-roles — admin only, trigger full Discord role sync
+router.post('/sync-roles', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { fullSync } = require('../discord/sync');
+    const result = await fullSync();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[SYNC] Full sync failed:', err.message);
+    res.status(500).json({ error: 'Role sync failed: ' + err.message });
+  }
+});
+
 module.exports = router;

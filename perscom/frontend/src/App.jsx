@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SoundProvider } from './context/SoundContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Personnel from './pages/Personnel';
 import Operations from './pages/Operations';
@@ -11,6 +12,8 @@ import Orbat from './pages/Orbat';
 import EventLog from './pages/EventLog';
 import MarineProfile from './pages/MarineProfile';
 import Settings from './pages/Settings';
+import Documents from './pages/Documents';
+import WelcomeScreen from './components/WelcomeScreen';
 
 function Loader() {
   return (
@@ -22,6 +25,14 @@ function Loader() {
   );
 }
 
+// Staff-only: blocks guests and marines (admin + moderator only)
+function StaffRoute({ children }) {
+  const { user, loading, isGuest, isMarine } = useAuth();
+  if (loading) return <Loader />;
+  if (!user || isGuest || isMarine) return <Navigate to="/personnel" replace />;
+  return children;
+}
+
 // Full-access: real user only, optionally admin-only
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading, isAdmin, isGuest } = useAuth();
@@ -31,7 +42,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
   return children;
 }
 
-// Any authenticated session (including guest)
+// Any authenticated session (including guest and marine)
 function AuthRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Loader />;
@@ -46,18 +57,20 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/" element={<AuthRoute><Layout /></AuthRoute>}>
-        {/* Staff-only routes */}
+        {/* Staff-only routes (admin + moderator only, not marines) */}
         <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="evaluations" element={<ProtectedRoute><Evaluations /></ProtectedRoute>} />
-        <Route path="eventlog" element={<ProtectedRoute><EventLog /></ProtectedRoute>} />
+        <Route path="evaluations" element={<StaffRoute><Evaluations /></StaffRoute>} />
+        <Route path="eventlog" element={<StaffRoute><EventLog /></StaffRoute>} />
         <Route path="settings" element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
-        <Route path="operations" element={<ProtectedRoute adminOnly><Operations /></ProtectedRoute>} />
 
-        {/* Guest-accessible routes (read-only enforcement inside the components) */}
+        {/* Marine + Guest + Staff accessible routes (read-only enforcement at API level) */}
         <Route path="personnel" element={<Personnel />} />
         <Route path="personnel/:id" element={<MarineProfile />} />
         <Route path="roster" element={<Orbat />} />
+        <Route path="documents" element={<Documents />} />
+        <Route path="operations" element={<Operations />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -68,7 +81,8 @@ export default function App() {
   return (
     <AuthProvider>
       <SoundProvider>
-        <BrowserRouter>
+        <WelcomeScreen />
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <AppRoutes />
         </BrowserRouter>
       </SoundProvider>

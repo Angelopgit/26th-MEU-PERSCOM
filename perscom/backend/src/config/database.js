@@ -213,11 +213,126 @@ function initializeDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS gear_loadouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS gear_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loadout_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      FOREIGN KEY (loadout_id) REFERENCES gear_loadouts(id) ON DELETE CASCADE
+    );
   `);
 
   // Add columns to existing tables (idempotent — catches error if column exists)
   try { database.exec("ALTER TABLE personnel ADD COLUMN member_status TEXT NOT NULL DEFAULT 'Active'"); } catch {}
   try { database.exec('ALTER TABLE operations ADD COLUMN image_url TEXT'); } catch {}
+  try { database.exec('ALTER TABLE personnel ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL'); } catch {}
+
+  // ── Discord OAuth migration ────────────────────────────────────────────────
+  // Migrate users table to support Discord auth and marine role.
+  //
+  // IMPORTANT: SQLite 3.25+ automatically rewrites FK references in OTHER tables
+  // when you ALTER TABLE RENAME. So "REFERENCES users(id)" in operations, personnel,
+  // etc. gets rewritten to "REFERENCES users_old(id)" during the rename, and then
+  // breaks after DROP TABLE users_old. We fix this two ways:
+  //   1. Use PRAGMA legacy_alter_table = ON to prevent FK rewriting during migration
+  //   2. Repair any already-corrupted schemas from previous runs
+
+  // Step 0: Repair corrupted FK references from a previous migration that
+  // rewrote "REFERENCES users(id)" → "REFERENCES users_old(id)" in other tables.
+  // node:sqlite blocks PRAGMA writable_schema, so we recreate each corrupted table.
+  try {
+    const corruptedTables = database.prepare(
+      "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%users_old%'"
+    ).all();
+
+    if (corruptedTables.length > 0) {
+      console.log(`[PERSCOM] Repairing ${corruptedTables.length} table(s) with corrupted FK references to users_old...`);
+      database.exec('PRAGMA foreign_keys = OFF');
+      database.exec('PRAGMA legacy_alter_table = ON');
+
+      for (const t of corruptedTables) {
+        const fixedSql = t.sql.replace(/users_old/g, 'users');
+        const tempName = `${t.name}__repair`;
+
+        database.exec(`ALTER TABLE "${t.name}" RENAME TO "${tempName}"`);
+        database.exec(fixedSql);
+        database.exec(`INSERT INTO "${t.name}" SELECT * FROM "${tempName}"`);
+        database.exec(`DROP TABLE "${tempName}"`);
+        console.log(`[PERSCOM]   Fixed: ${t.name}`);
+      }
+
+      database.exec('PRAGMA legacy_alter_table = OFF');
+      database.exec('PRAGMA foreign_keys = ON');
+      console.log('[PERSCOM] FK references repaired');
+    }
+  } catch (repairErr) {
+    console.error('[PERSCOM] FK repair failed — delete perscom.db to reset:', repairErr.message);
+  }
+
+  // Step 1: Clean up any leftover users_old from partial migrations
+  try { database.exec('DROP TABLE IF EXISTS users_old'); } catch {}
+
+  // Step 2: Check if migration is needed
+  const userCols = database.prepare('PRAGMA table_info(users)').all();
+  const hasDiscordId = userCols.some(c => c.name === 'discord_id');
+
+  if (!hasDiscordId) {
+    database.exec('PRAGMA foreign_keys = OFF');
+    // Prevent SQLite from rewriting FK references in other tables during rename
+    database.exec('PRAGMA legacy_alter_table = ON');
+
+    database.exec('ALTER TABLE users RENAME TO users_old');
+
+    database.exec(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password_hash TEXT,
+        display_name TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('admin', 'moderator', 'marine')),
+        discord_id TEXT UNIQUE,
+        discord_username TEXT,
+        discord_avatar TEXT,
+        discord_access_token TEXT,
+        discord_refresh_token TEXT,
+        personnel_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE SET NULL
+      )
+    `);
+
+    database.exec(
+      'INSERT INTO users (id, username, password_hash, display_name, role, created_at) SELECT id, username, password_hash, display_name, role, created_at FROM users_old'
+    );
+
+    database.exec('DROP TABLE users_old');
+
+    database.exec('PRAGMA legacy_alter_table = OFF');
+    database.exec('PRAGMA foreign_keys = ON');
+    console.log('[PERSCOM] Users table migrated for Discord OAuth');
+  }
 
   // Seed ORBAT structure if empty
   const orbatCount = database.prepare('SELECT COUNT(*) as cnt FROM orbat_slots').get();

@@ -1,26 +1,26 @@
 import axios from 'axios';
 
-// In development, Vite proxies /api to localhost:3001
-// In production, Express serves both frontend and API from the same origin
+// In production, VITE_API_URL points to the backend server (e.g. https://api.26thmeu.org/api)
+// In development, the Vite proxy handles /api → localhost:3001
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 15000,
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('perscom_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+  withCredentials: true,
 });
 
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('perscom_token');
-      localStorage.removeItem('perscom_user');
-      localStorage.removeItem('perscom_guest');
-      window.location.href = '/login';
+      // Don't redirect on the session-check call itself — AuthContext handles that 401
+      // in its own catch block. Redirecting here would cause an infinite reload loop.
+      const isSessionCheck = err.config?.url?.endsWith('/auth/me');
+      if (!isSessionCheck) {
+        localStorage.removeItem('perscom_user');
+        localStorage.removeItem('perscom_guest');
+        sessionStorage.removeItem('perscom_alias');
+        window.location.href = import.meta.env.BASE_URL + 'login';
+      }
     }
     return Promise.reject(err);
   }

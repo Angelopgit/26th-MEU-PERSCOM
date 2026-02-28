@@ -1,0 +1,726 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  FileText, Package, Clock, Plus, Edit2, Trash2, Loader2,
+  Bold, Italic, X, ChevronDown, ChevronUp, AlertTriangle,
+} from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { Link } from 'react-router-dom';
+import api from '../utils/api';
+import Modal from '../components/Modal';
+import { useAuth } from '../context/AuthContext';
+
+// ── Colour palette for rich text editor ──────────────────────────────────────
+const COLORS = [
+  { label: 'White',    value: '#f1f5f9' },
+  { label: 'Blue',     value: '#60a5fa' },
+  { label: 'Cyan',     value: '#22d3ee' },
+  { label: 'Green',    value: '#4ade80' },
+  { label: 'Amber',    value: '#fbbf24' },
+  { label: 'Red',      value: '#f87171' },
+  { label: 'Gray',     value: '#94a3b8' },
+];
+
+// ── Rich Text Editor ──────────────────────────────────────────────────────────
+function RichTextEditor({ value, onChange }) {
+  const editorRef = useRef(null);
+  const [showColors, setShowColors] = useState(false);
+  const colorRef = useRef(null);
+
+  // Sync external value into editor (only on mount / external reset)
+  const lastValueRef = useRef(value);
+  useEffect(() => {
+    if (editorRef.current && value !== lastValueRef.current) {
+      editorRef.current.innerHTML = value || '';
+      lastValueRef.current = value;
+    }
+  }, [value]);
+
+  // Close color picker on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (colorRef.current && !colorRef.current.contains(e.target)) setShowColors(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const exec = (cmd, val = null) => {
+    editorRef.current.focus();
+    document.execCommand(cmd, false, val);
+    const html = editorRef.current.innerHTML;
+    lastValueRef.current = html;
+    onChange(html);
+  };
+
+  const applyColor = (color) => {
+    editorRef.current.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      document.execCommand('foreColor', false, color);
+      const html = editorRef.current.innerHTML;
+      lastValueRef.current = html;
+      onChange(html);
+    }
+    setShowColors(false);
+  };
+
+  const handleInput = () => {
+    const html = editorRef.current.innerHTML;
+    lastValueRef.current = html;
+    onChange(html);
+  };
+
+  const ToolBtn = ({ onMouseDown, title, children, active }) => (
+    <button
+      type="button"
+      data-nosound
+      onMouseDown={(e) => { e.preventDefault(); onMouseDown(); }}
+      title={title}
+      className={`px-2 py-1 rounded-sm text-xs font-mono transition-colors border ${
+        active
+          ? 'bg-[#3b82f6]/20 border-[#3b82f6]/50 text-[#60a5fa]'
+          : 'border-[#162448] text-[#4a6fa5] hover:text-[#dbeafe] hover:border-[#3b82f6]/30'
+      }`}
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="border border-[#162448] rounded-sm overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 flex-wrap px-2 py-1.5 bg-[#060918] border-b border-[#162448]">
+        <ToolBtn onMouseDown={() => exec('bold')} title="Bold"><Bold size={11} /></ToolBtn>
+        <ToolBtn onMouseDown={() => exec('italic')} title="Italic"><Italic size={11} /></ToolBtn>
+        <div className="w-px h-4 bg-[#162448] mx-0.5" />
+        {['h1','h2','h3'].map((h) => (
+          <ToolBtn key={h} onMouseDown={() => exec('formatBlock', h)} title={h.toUpperCase()}>
+            {h.toUpperCase()}
+          </ToolBtn>
+        ))}
+        <ToolBtn onMouseDown={() => exec('formatBlock', 'p')} title="Normal text">¶</ToolBtn>
+        <div className="w-px h-4 bg-[#162448] mx-0.5" />
+        {/* Color picker */}
+        <div className="relative" ref={colorRef}>
+          <button
+            type="button"
+            data-nosound
+            onMouseDown={(e) => { e.preventDefault(); setShowColors((v) => !v); }}
+            title="Text colour"
+            className="px-2 py-1 rounded-sm text-xs font-mono border border-[#162448] text-[#4a6fa5] hover:text-[#dbeafe] hover:border-[#3b82f6]/30 transition-colors flex items-center gap-1"
+          >
+            <span className="text-[10px]">A</span>
+            <span className="w-2 h-2 rounded-full bg-[#60a5fa]" />
+          </button>
+          {showColors && (
+            <div className="absolute top-full left-0 mt-1 bg-[#0c1428] border border-[#162448] rounded-sm p-2 flex flex-wrap gap-1.5 z-50 w-36 shadow-xl">
+              {COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  data-nosound
+                  onMouseDown={(e) => { e.preventDefault(); applyColor(c.value); }}
+                  title={c.label}
+                  className="w-5 h-5 rounded-sm border border-[#162448] hover:scale-110 transition-transform"
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="w-px h-4 bg-[#162448] mx-0.5" />
+        <ToolBtn onMouseDown={() => exec('removeFormat')} title="Clear formatting">
+          <X size={10} />
+        </ToolBtn>
+      </div>
+
+      {/* Editable area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        className="min-h-[180px] p-3 text-[#dbeafe] text-sm outline-none leading-relaxed rich-content"
+        style={{ caretColor: '#60a5fa' }}
+      />
+    </div>
+  );
+}
+
+// ── Document card ─────────────────────────────────────────────────────────────
+function DocCard({ doc, isAdmin, onEdit, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="card overflow-hidden">
+      <div
+        className="flex items-start justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-[#0f1c35]/40 transition-colors"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <FileText size={12} className="text-[#3b82f6] shrink-0" />
+            <h3 className="text-[#dbeafe] text-sm font-medium truncate">{doc.title}</h3>
+          </div>
+          <div className="text-[#1a2f55] text-[10px] font-mono mt-0.5">
+            {doc.author} · {format(parseISO(doc.created_at), 'MMM dd, yyyy')}
+            {doc.updated_at !== doc.created_at && (
+              <span className="ml-2 text-[#0f2040]">(edited)</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {isAdmin && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(doc); }}
+                className="p-1.5 text-[#2a4a80] hover:text-[#dbeafe] transition-colors"
+                title="Edit"
+              >
+                <Edit2 size={12} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(doc); }}
+                className="p-1.5 text-[#2a4a80] hover:text-red-400 transition-colors"
+                title="Delete"
+              >
+                <Trash2 size={12} />
+              </button>
+            </>
+          )}
+          {expanded ? <ChevronUp size={14} className="text-[#2a4a80]" /> : <ChevronDown size={14} className="text-[#2a4a80]" />}
+        </div>
+      </div>
+      {expanded && doc.content && (
+        <div
+          className="px-4 pb-4 pt-1 border-t border-[#162448]/50 text-sm text-[#93c5fd] leading-relaxed rich-content"
+          dangerouslySetInnerHTML={{ __html: doc.content }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Document modal (create / edit) ────────────────────────────────────────────
+function DocModal({ initial, onSave, onClose, saving }) {
+  const [title, setTitle] = useState(initial?.title || '');
+  const [content, setContent] = useState(initial?.content || '');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onSave({ title: title.trim(), content });
+  };
+
+  return (
+    <Modal title={initial ? 'Edit Document' : 'New Document'} onClose={onClose} maxWidth="max-w-2xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Title / Headline</label>
+          <input
+            className="input-field"
+            placeholder="Document title..."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="label mb-2">Content</label>
+          <RichTextEditor value={content} onChange={setContent} />
+        </div>
+        <div className="flex gap-2 justify-end pt-1">
+          <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          <button type="submit" disabled={saving || !title.trim()} className="btn-primary flex items-center gap-2">
+            {saving && <Loader2 size={13} className="animate-spin" />}
+            {initial ? 'Save Changes' : 'Publish'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ── Gear Loadout panel ────────────────────────────────────────────────────────
+function LoadoutCard({ loadout, isAdmin, onDelete, onAddItem, onDeleteItem }) {
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [itemName, setItemName] = useState('');
+  const [itemDesc, setItemDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    if (!itemName.trim()) return;
+    setSaving(true);
+    await onAddItem(loadout.id, itemName.trim(), itemDesc.trim());
+    setItemName('');
+    setItemDesc('');
+    setShowAddItem(false);
+    setSaving(false);
+  };
+
+  return (
+    <div className="card overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#162448] bg-[#060918]/60">
+        <div>
+          <div className="flex items-center gap-2">
+            <Package size={12} className="text-[#3b82f6]" />
+            <span className="text-[#dbeafe] text-sm font-medium">{loadout.name}</span>
+          </div>
+          {loadout.description && (
+            <p className="text-[#4a6fa5] text-xs mt-0.5 ml-4">{loadout.description}</p>
+          )}
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => onDelete(loadout)}
+            className="p-1.5 text-[#2a4a80] hover:text-red-400 transition-colors"
+            title="Delete loadout"
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Items */}
+      <div className="divide-y divide-[#162448]/40">
+        {loadout.items.length === 0 && (
+          <div className="px-4 py-3 text-[#1a2f55] text-[10px] font-mono">NO ITEMS LISTED</div>
+        )}
+        {loadout.items.map((item) => (
+          <div key={item.id} className="flex items-center gap-3 px-4 py-2.5 group">
+            <div className="w-1 h-1 rounded-full bg-[#3b82f6]/50 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-[#dbeafe] text-xs font-medium">{item.name}</span>
+              {item.description && (
+                <span className="text-[#4a6fa5] text-xs ml-2">{item.description}</span>
+              )}
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => onDeleteItem(loadout.id, item.id)}
+                className="opacity-0 group-hover:opacity-100 p-1 text-[#2a4a80] hover:text-red-400 transition-all"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Add item (admin only) */}
+      {isAdmin && (
+        <div className="border-t border-[#162448] px-4 py-2.5">
+          {showAddItem ? (
+            <form onSubmit={handleAddItem} className="flex items-center gap-2">
+              <input
+                className="input-field flex-1 py-1 text-xs"
+                placeholder="Item name (e.g. M4A1 Rifle)"
+                value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
+                autoFocus
+                required
+              />
+              <input
+                className="input-field w-40 py-1 text-xs"
+                placeholder="Note (optional)"
+                value={itemDesc}
+                onChange={(e) => setItemDesc(e.target.value)}
+              />
+              <button type="submit" disabled={saving} className="btn-primary py-1 px-3 text-xs flex items-center gap-1">
+                {saving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                Add
+              </button>
+              <button type="button" onClick={() => setShowAddItem(false)} className="btn-ghost py-1 px-2 text-xs">
+                <X size={11} />
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setShowAddItem(true)}
+              className="flex items-center gap-1.5 text-[#2a4a80] hover:text-[#4a6fa5] text-xs font-mono transition-colors"
+            >
+              <Plus size={11} />
+              Add item
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── LOA row ───────────────────────────────────────────────────────────────────
+const RANK_ABBREV = {
+  'Recruit': 'Rct', 'Private': 'Pvt', 'Private First Class': 'PFC',
+  'Lance Corporal': 'LCpl', 'Corporal': 'Cpl', 'Sergeant': 'Sgt',
+  'Staff Sergeant': 'SSgt', 'Gunnery Sergeant': 'GySgt',
+  'Master Sergeant': 'MSgt', 'First Sergeant': '1stSgt',
+  'Master Gunnery Sergeant': 'MGySgt', 'Sergeant Major': 'SgtMaj',
+  'Second Lieutenant': '2ndLt', 'First Lieutenant': '1stLt',
+  'Captain': 'Capt', 'Major': 'Maj', 'Lieutenant Colonel': 'LtCol', 'Colonel': 'Col',
+};
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'documents',  label: 'Documents',       icon: FileText },
+  { id: 'loadouts',   label: 'Gear Loadouts',   icon: Package  },
+  { id: 'loa',        label: 'Leave of Absence',icon: Clock    },
+];
+
+export default function Documents() {
+  const { isAdmin } = useAuth();
+  const [tab, setTab] = useState('documents');
+
+  // Documents state
+  const [docs, setDocs]           = useState([]);
+  const [docsLoading, setDocsLoading] = useState(true);
+  const [docModal, setDocModal]   = useState(null); // null | 'new' | doc-object
+  const [docSaving, setDocSaving] = useState(false);
+  const [deleteDoc, setDeleteDoc] = useState(null);
+  const [deleting, setDeleting]   = useState(false);
+
+  // Gear loadouts state
+  const [loadouts, setLoadouts]   = useState([]);
+  const [loadoutsLoading, setLoadoutsLoading] = useState(true);
+  const [showNewLoadout, setShowNewLoadout] = useState(false);
+  const [newLoadoutName, setNewLoadoutName] = useState('');
+  const [newLoadoutDesc, setNewLoadoutDesc] = useState('');
+  const [loadoutSaving, setLoadoutSaving] = useState(false);
+
+  // LOA state
+  const [loaList, setLoaList]     = useState([]);
+  const [loaLoading, setLoaLoading] = useState(true);
+
+  // ── Fetch ───────────────────────────────────────────────────────────────────
+  const fetchDocs = useCallback(async () => {
+    setDocsLoading(true);
+    try {
+      const r = await api.get('/documents');
+      setDocs(r.data);
+    } catch {}
+    finally { setDocsLoading(false); }
+  }, []);
+
+  const fetchLoadouts = useCallback(async () => {
+    setLoadoutsLoading(true);
+    try {
+      const r = await api.get('/gear-loadouts');
+      setLoadouts(r.data);
+    } catch {}
+    finally { setLoadoutsLoading(false); }
+  }, []);
+
+  const fetchLoa = useCallback(async () => {
+    setLoaLoading(true);
+    try {
+      const r = await api.get('/personnel');
+      setLoaList(r.data.filter((p) => p.member_status === 'Leave of Absence'));
+    } catch {}
+    finally { setLoaLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
+  useEffect(() => { fetchLoadouts(); }, [fetchLoadouts]);
+  useEffect(() => { fetchLoa(); }, [fetchLoa]);
+
+  // ── Document handlers ───────────────────────────────────────────────────────
+  const handleSaveDoc = async ({ title, content }) => {
+    setDocSaving(true);
+    try {
+      if (docModal && docModal.id) {
+        await api.put(`/documents/${docModal.id}`, { title, content });
+      } else {
+        await api.post('/documents', { title, content });
+      }
+      setDocModal(null);
+      fetchDocs();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save document');
+    } finally { setDocSaving(false); }
+  };
+
+  const handleDeleteDoc = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/documents/${deleteDoc.id}`);
+      setDeleteDoc(null);
+      fetchDocs();
+    } catch { alert('Failed to delete document'); }
+    finally { setDeleting(false); }
+  };
+
+  // ── Loadout handlers ────────────────────────────────────────────────────────
+  const handleAddLoadout = async (e) => {
+    e.preventDefault();
+    if (!newLoadoutName.trim()) return;
+    setLoadoutSaving(true);
+    try {
+      const r = await api.post('/gear-loadouts', { name: newLoadoutName.trim(), description: newLoadoutDesc.trim() });
+      setLoadouts((prev) => [...prev, { ...r.data, items: [] }]);
+      setNewLoadoutName('');
+      setNewLoadoutDesc('');
+      setShowNewLoadout(false);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to create loadout');
+    } finally { setLoadoutSaving(false); }
+  };
+
+  const handleDeleteLoadout = async (loadout) => {
+    if (!confirm(`Delete loadout "${loadout.name}" and all its items?`)) return;
+    try {
+      await api.delete(`/gear-loadouts/${loadout.id}`);
+      setLoadouts((prev) => prev.filter((l) => l.id !== loadout.id));
+    } catch { alert('Failed to delete loadout'); }
+  };
+
+  const handleAddItem = async (loadoutId, name, description) => {
+    try {
+      const r = await api.post(`/gear-loadouts/${loadoutId}/items`, { name, description });
+      setLoadouts((prev) => prev.map((l) =>
+        l.id === loadoutId ? { ...l, items: [...l.items, r.data] } : l
+      ));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to add item');
+    }
+  };
+
+  const handleDeleteItem = async (loadoutId, itemId) => {
+    try {
+      await api.delete(`/gear-loadouts/${loadoutId}/items/${itemId}`);
+      setLoadouts((prev) => prev.map((l) =>
+        l.id === loadoutId ? { ...l, items: l.items.filter((i) => i.id !== itemId) } : l
+      ));
+    } catch { alert('Failed to delete item'); }
+  };
+
+  return (
+    <div className="space-y-4 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <FileText size={14} className="text-[#3b82f6]" />
+        <span className="section-header text-sm">Unit Documents</span>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-0 border-b border-[#162448]">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            data-sound="tab"
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-all -mb-px ${
+              tab === id
+                ? 'border-[#3b82f6] text-[#60a5fa]'
+                : 'border-transparent text-[#4a6fa5] hover:text-[#93c5fd]'
+            }`}
+          >
+            <Icon size={12} />
+            {label}
+            {id === 'loa' && loaList.length > 0 && (
+              <span className="bg-amber-900/40 text-amber-400 text-[9px] font-mono px-1.5 py-0.5 rounded-sm border border-amber-900/40">
+                {loaList.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Documents tab ──────────────────────────────────────────────────── */}
+      {tab === 'documents' && (
+        <div className="space-y-3">
+          {isAdmin && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setDocModal('new')}
+                className="btn-primary flex items-center gap-2 text-sm"
+              >
+                <Plus size={13} /> New Document
+              </button>
+            </div>
+          )}
+
+          {docsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
+            </div>
+          ) : docs.length === 0 ? (
+            <div className="card py-12 text-center text-[#1a2f55] font-mono text-xs">
+              NO DOCUMENTS PUBLISHED
+            </div>
+          ) : (
+            docs.map((doc) => (
+              <DocCard
+                key={doc.id}
+                doc={doc}
+                isAdmin={isAdmin}
+                onEdit={(d) => setDocModal(d)}
+                onDelete={(d) => setDeleteDoc(d)}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {/* ── Gear Loadouts tab ──────────────────────────────────────────────── */}
+      {tab === 'loadouts' && (
+        <div className="space-y-3">
+          {isAdmin && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowNewLoadout(true)}
+                className="btn-primary flex items-center gap-2 text-sm"
+              >
+                <Plus size={13} /> New Loadout
+              </button>
+            </div>
+          )}
+
+          {/* New loadout form */}
+          {isAdmin && showNewLoadout && (
+            <div className="card p-4">
+              <form onSubmit={handleAddLoadout} className="space-y-3">
+                <div className="text-[#4a6fa5] text-xs font-mono mb-2">// CREATE LOADOUT</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Loadout Name</label>
+                    <input
+                      className="input-field"
+                      placeholder="e.g. Rifleman (AT)"
+                      value={newLoadoutName}
+                      onChange={(e) => setNewLoadoutName(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Description (optional)</label>
+                    <input
+                      className="input-field"
+                      placeholder="Brief description..."
+                      value={newLoadoutDesc}
+                      onChange={(e) => setNewLoadoutDesc(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button type="button" onClick={() => { setShowNewLoadout(false); setNewLoadoutName(''); setNewLoadoutDesc(''); }} className="btn-ghost">Cancel</button>
+                  <button type="submit" disabled={loadoutSaving || !newLoadoutName.trim()} className="btn-primary flex items-center gap-2">
+                    {loadoutSaving && <Loader2 size={12} className="animate-spin" />}
+                    Create
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {loadoutsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
+            </div>
+          ) : loadouts.length === 0 ? (
+            <div className="card py-12 text-center text-[#1a2f55] font-mono text-xs">
+              NO GEAR LOADOUTS DEFINED
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {loadouts.map((l) => (
+                <LoadoutCard
+                  key={l.id}
+                  loadout={l}
+                  isAdmin={isAdmin}
+                  onDelete={handleDeleteLoadout}
+                  onAddItem={handleAddItem}
+                  onDeleteItem={handleDeleteItem}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Leave of Absence tab ───────────────────────────────────────────── */}
+      {tab === 'loa' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-mono text-[#1a2f55]">
+            <AlertTriangle size={11} className="text-amber-400" />
+            <span>Marines currently on Leave of Absence</span>
+            <span className="ml-auto text-[#4a6fa5]">{loaList.length} personnel</span>
+          </div>
+
+          {loaLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
+            </div>
+          ) : loaList.length === 0 ? (
+            <div className="card py-12 text-center">
+              <Clock size={24} className="text-[#162448] mx-auto mb-2" />
+              <div className="text-[#1a2f55] font-mono text-xs">NO PERSONNEL CURRENTLY ON LOA</div>
+            </div>
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="flex items-center gap-4 px-4 py-2.5 border-b border-[#162448] bg-[#060918]">
+                <div className="flex-1 section-header">Name / Rank</div>
+                <div className="w-32 section-header hidden sm:block">Date of Entry</div>
+                <div className="w-28 section-header">Status</div>
+              </div>
+              {loaList.map((p) => (
+                <div key={p.id} className="flex items-center gap-4 px-4 py-3 border-b border-[#162448]/40 last:border-0 hover:bg-[#0f1c35]/40 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      to={`/personnel/${p.id}`}
+                      className="text-[#dbeafe] text-sm font-medium hover:text-[#60a5fa] transition-colors"
+                    >
+                      {p.name}
+                    </Link>
+                    <div className="text-[#4a6fa5] text-xs font-mono mt-0.5">
+                      {p.status === 'Marine' ? (RANK_ABBREV[p.rank] || p.rank || '—') : 'CIV'}
+                    </div>
+                  </div>
+                  <div className="w-32 hidden sm:block text-[#4a6fa5] text-xs font-mono">
+                    {p.date_of_entry ? format(parseISO(p.date_of_entry), 'MMM dd, yyyy') : '—'}
+                  </div>
+                  <div className="w-28">
+                    <span className="badge bg-amber-900/20 text-amber-400 border border-amber-900/30 font-mono text-[10px]">
+                      On Leave
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Document modals ─────────────────────────────────────────────────── */}
+      {docModal && (
+        <DocModal
+          initial={docModal === 'new' ? null : docModal}
+          onSave={handleSaveDoc}
+          onClose={() => setDocModal(null)}
+          saving={docSaving}
+        />
+      )}
+
+      {deleteDoc && (
+        <Modal title="Delete Document" onClose={() => setDeleteDoc(null)} maxWidth="max-w-sm">
+          <div className="space-y-4">
+            <p className="text-[#93c5fd] text-sm">
+              Delete <span className="text-[#dbeafe] font-medium">"{deleteDoc.title}"</span>?
+              This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeleteDoc(null)} className="btn-ghost">Cancel</button>
+              <button onClick={handleDeleteDoc} disabled={deleting} className="btn-danger flex items-center gap-2">
+                {deleting && <Loader2 size={13} className="animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
