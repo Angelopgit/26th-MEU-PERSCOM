@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getDb } = require('../../config/database');
 const { logActivity } = require('../../utils/logActivity');
 const { syncRankToDiscord } = require('../sync');
@@ -28,10 +28,18 @@ module.exports = {
 
     const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(targetUser.id);
     if (!user || !user.personnel_id) {
-      return interaction.reply({
-        content: `⛔ **${targetUser.username}** is not registered on PERSCOM.`,
-        ephemeral: true,
-      });
+      const registerUrl = `${process.env.FRONTEND_URL || 'https://26thmeu.org/perscom'}/login`;
+      const embed = new EmbedBuilder()
+        .setColor(0xef4444)
+        .setTitle('🪖 Not Registered on PERSCOM')
+        .setDescription(`<@${targetUser.id}> does not have a PERSCOM account.\nTo join the roster, sign in with Discord on the PERSCOM portal.`)
+        .setThumbnail(targetUser.displayAvatarURL({ size: 64 }))
+        .setFooter({ text: 'PERSCOM — 26th MEU (SOC)' })
+        .setTimestamp();
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel('Register on PERSCOM').setStyle(ButtonStyle.Link).setURL(registerUrl).setEmoji('🪖')
+      );
+      return interaction.reply({ embeds: [embed], components: [row] });
     }
 
     const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(user.personnel_id);
