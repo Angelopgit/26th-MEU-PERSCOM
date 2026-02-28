@@ -14,7 +14,8 @@ try {
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, '../../data/perscom.db');
+// Allow Railway volume path override via env var (default: local data/ directory)
+const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, '../../data/perscom.db');
 
 let db;
 
