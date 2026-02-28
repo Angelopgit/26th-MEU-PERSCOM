@@ -14,6 +14,7 @@ import MarineProfile from './pages/MarineProfile';
 import Settings from './pages/Settings';
 import Documents from './pages/Documents';
 import WelcomeScreen from './components/WelcomeScreen';
+import NoPersonnelModal from './components/NoPersonnelModal';
 
 function Loader() {
   return (
@@ -82,6 +83,7 @@ export default function App() {
     <AuthProvider>
       <SoundProvider>
         <WelcomeScreen />
+        <NoPersonnelModal />
         <BrowserRouter basename={import.meta.env.BASE_URL}>
           <AppRoutes />
         </BrowserRouter>

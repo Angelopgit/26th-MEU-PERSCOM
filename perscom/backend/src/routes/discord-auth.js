@@ -252,6 +252,73 @@ router.post('/discord/register', (req, res) => {
   res.json({ user: payload });
 });
 
+// Link a personnel record to an already-authenticated user who has none.
+// Marine users are blocked from POST mutations by the standard auth middleware,
+// so we do JWT verification manually here.
+router.post('/discord/link-personnel', (req, res) => {
+  const token = req.cookies?.perscom_token;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+  let currentUser;
+  try {
+    currentUser = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+  }
+
+  if (currentUser.role === 'guest') {
+    return res.status(403).json({ error: 'Guest accounts cannot be linked.' });
+  }
+
+  // Check DB directly (not just JWT) in case token is stale
+  const db = getDb();
+  const dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id);
+  if (!dbUser) return res.status(404).json({ error: 'User not found.' });
+  if (dbUser.personnel_id) return res.status(409).json({ error: 'Account is already linked to a marine record.' });
+
+  const { name } = req.body;
+  if (!name || name.trim().length < 3) {
+    return res.status(400).json({ error: 'Please enter your full name (Last, First).' });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const personnelResult = db.prepare(
+    'INSERT INTO personnel (name, status, rank, rank_since, date_of_entry, member_status) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(name.trim(), 'Marine', 'Recruit', today, today, 'Active');
+
+  const personnelId = personnelResult.lastInsertRowid;
+
+  db.prepare('UPDATE users SET personnel_id = ? WHERE id = ?').run(personnelId, currentUser.id);
+  db.prepare('UPDATE personnel SET user_id = ? WHERE id = ?').run(currentUser.id, personnelId);
+
+  logActivity(
+    'MARINE_REGISTERED',
+    `${name.trim()} created personnel record (${dbUser.discord_username || dbUser.username})`,
+    currentUser.id
+  );
+
+  if (dbUser.discord_id) {
+    syncRankToDiscord(dbUser.discord_id, null, 'Recruit').catch(() => {});
+  }
+
+  // Issue fresh JWT with personnel_id populated
+  const payload = {
+    id: currentUser.id,
+    username: currentUser.username,
+    role: currentUser.role,
+    display_name: name.trim(),
+    discord_id: currentUser.discord_id,
+    discord_username: currentUser.discord_username,
+    discord_avatar: currentUser.discord_avatar,
+    personnel_id: personnelId,
+  };
+
+  const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+  res.cookie('perscom_token', newToken, cookieOpts(24 * 60 * 60 * 1000));
+  res.json({ user: payload });
+});
+
 // Get registration info from the temp cookie (for the Register page to display Discord avatar/name)
 router.get('/discord/register-info', (req, res) => {
   const regToken = req.cookies?.perscom_reg;
