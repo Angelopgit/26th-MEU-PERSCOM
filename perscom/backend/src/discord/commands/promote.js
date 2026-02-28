@@ -1,7 +1,8 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getDb } = require('../../config/database');
 const { logActivity } = require('../../utils/logActivity');
 const { syncRankToDiscord } = require('../sync');
+const { announceRankChange } = require('../announcer');
 
 const RANKS = [
   'Recruit', 'Private', 'Private First Class', 'Lance Corporal', 'Corporal',
@@ -28,21 +29,25 @@ module.exports = {
     const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(targetUser.id);
     if (!user || !user.personnel_id) {
       return interaction.reply({
-        content: `**${targetUser.username}** is not registered on PERSCOM.`,
+        content: `⛔ **${targetUser.username}** is not registered on PERSCOM.`,
         ephemeral: true,
       });
     }
 
     const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(user.personnel_id);
     if (!person || person.status !== 'Marine') {
-      return interaction.reply({ content: 'This person is not a Marine.', ephemeral: true });
+      return interaction.reply({ content: '⛔ This person is not an active Marine.', ephemeral: true });
     }
 
     const idx = RANKS.indexOf(person.rank);
     if (idx === -1 || idx >= RANKS.length - 1) {
-      return interaction.reply({ content: `**${person.name}** is already at the highest rank.`, ephemeral: true });
+      return interaction.reply({
+        content: `⛔ **${person.name}** is already at the highest rank (**${person.rank}**).`,
+        ephemeral: true,
+      });
     }
 
+    const oldRank = person.rank;
     const newRank = RANKS[idx + 1];
     const today = new Date().toISOString().split('T')[0];
 
@@ -53,15 +58,36 @@ module.exports = {
     const invokerUser = db.prepare('SELECT id FROM users WHERE discord_id = ?').get(interaction.user.id);
     logActivity(
       'PROMOTED',
-      `${person.name}: ${person.rank} → ${newRank} (via Discord by ${interaction.user.username})`,
+      `${person.name}: ${oldRank} → ${newRank} (via Discord by ${interaction.user.username})`,
       invokerUser?.id || null
     );
 
     // Sync Discord roles
-    await syncRankToDiscord(targetUser.id, person.rank, newRank);
+    await syncRankToDiscord(targetUser.id, oldRank, newRank);
 
-    return interaction.reply({
-      content: `**${person.name}** promoted from **${person.rank}** to **${newRank}**.`,
-    });
+    // Public announcement in #bot-commands
+    await announceRankChange(
+      targetUser.id,
+      person.name,
+      oldRank,
+      newRank,
+      interaction.user.displayName || interaction.user.username,
+      user.discord_avatar
+    );
+
+    // Ephemeral confirmation to Command Staff
+    const embed = new EmbedBuilder()
+      .setColor(0x22c55e)
+      .setTitle('✅ Promotion Confirmed')
+      .setThumbnail(targetUser.displayAvatarURL({ size: 64 }))
+      .addFields(
+        { name: 'Marine', value: person.name, inline: true },
+        { name: 'Previous Rank', value: oldRank, inline: true },
+        { name: 'New Rank', value: newRank, inline: true },
+      )
+      .setFooter({ text: `Issued by ${interaction.user.displayName || interaction.user.username} · PERSCOM` })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
   },
 };

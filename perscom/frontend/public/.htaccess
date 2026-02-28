@@ -2,9 +2,16 @@ Options -MultiViews
 RewriteEngine On
 RewriteBase /perscom/
 
-# Serve existing files and directories directly
+# ── Optional: proxy /api/* and /uploads/* to the Node.js backend ─────────────
+# Uncomment these if your host has mod_proxy enabled AND the backend runs on
+# the same server (e.g. cPanel Node.js App on port 3001).
+# If the backend is on a separate host, set VITE_API_URL in .env.production instead.
+#
+# RewriteRule ^api/(.*)$     http://localhost:3001/api/$1     [P,L]
+# RewriteRule ^uploads/(.*)$ http://localhost:3001/uploads/$1 [P,L]
+
+# ── React Router client-side routing ─────────────────────────────────────────
+# Serve existing files and directories directly; everything else → index.html
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-
-# Route everything else through index.html for React Router
 RewriteRule ^ index.html [L]

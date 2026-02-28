@@ -3,6 +3,13 @@ const { getDb } = require('../config/database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { logActivity } = require('../utils/logActivity');
 const { syncRankToDiscord } = require('../discord/sync');
+const { getMemberRoles } = require('../discord/bot');
+const {
+  announceRankChange,
+  announceAward,
+  announceAwardRevoked,
+  announceStatusChange,
+} = require('../discord/announcer');
 
 const router = express.Router();
 
@@ -113,6 +120,24 @@ router.get('/:id', authenticate, (req, res) => {
   });
 });
 
+// Get Discord roles for a personnel member (fetched live from Discord)
+router.get('/:id/discord-roles', authenticate, async (req, res) => {
+  const db = getDb();
+  const linkedUser = db.prepare(
+    'SELECT discord_id FROM users WHERE personnel_id = ?'
+  ).get(req.params.id);
+
+  if (!linkedUser?.discord_id) return res.json({ roles: [] });
+
+  try {
+    const roles = await getMemberRoles(linkedUser.discord_id);
+    res.json({ roles });
+  } catch (err) {
+    console.error('[API] discord-roles fetch failed:', err.message);
+    res.json({ roles: [] });
+  }
+});
+
 // Create personnel
 router.post('/', authenticate, requireAdmin, (req, res) => {
   const { name, status, rank, date_of_entry, member_status } = req.body;
@@ -175,11 +200,19 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
     logActivity(action, `${person.name}: ${person.rank || 'N/A'} → ${newRank || 'N/A'}`, req.user.id);
 
     // Sync Discord roles if the marine has a linked Discord account
-    const linkedUser = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
+    const linkedUser = db.prepare('SELECT discord_id, discord_avatar FROM users WHERE personnel_id = ?').get(req.params.id);
     if (linkedUser?.discord_id) {
       syncRankToDiscord(linkedUser.discord_id, person.rank, newRank).catch(err => {
         console.error('[SYNC] Discord role sync failed:', err.message);
       });
+      announceRankChange(
+        linkedUser.discord_id,
+        newName,
+        person.rank,
+        newRank,
+        req.user.display_name,
+        linkedUser.discord_avatar
+      ).catch(() => {});
     }
   }
 
@@ -197,11 +230,23 @@ router.patch('/:id/member-status', authenticate, (req, res) => {
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
 
+  const oldStatus = person.member_status;
   db.prepare(
     'UPDATE personnel SET member_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(member_status, req.params.id);
 
-  logActivity('STATUS_CHANGED', `${person.name}: ${person.member_status} → ${member_status}`, req.user.id);
+  logActivity('STATUS_CHANGED', `${person.name}: ${oldStatus} → ${member_status}`, req.user.id);
+
+  const linkedUserS = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUserS?.discord_id) {
+    announceStatusChange(
+      linkedUserS.discord_id,
+      person.name,
+      oldStatus,
+      member_status,
+      req.user.display_name
+    ).catch(() => {});
+  }
 
   res.json({ success: true, member_status });
 });
@@ -239,12 +284,19 @@ router.post('/:id/promote', authenticate, requireAdmin, (req, res) => {
 
   logActivity('PROMOTED', `${person.name}: ${person.rank} → ${newRank}`, req.user.id);
 
-  // Sync Discord roles
-  const linkedUser = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
-  if (linkedUser?.discord_id) {
-    syncRankToDiscord(linkedUser.discord_id, person.rank, newRank).catch(err => {
+  const linkedUserP = db.prepare('SELECT discord_id, discord_avatar FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUserP?.discord_id) {
+    syncRankToDiscord(linkedUserP.discord_id, person.rank, newRank).catch(err => {
       console.error('[SYNC] Discord role sync failed:', err.message);
     });
+    announceRankChange(
+      linkedUserP.discord_id,
+      person.name,
+      person.rank,
+      newRank,
+      req.user.display_name,
+      linkedUserP.discord_avatar
+    ).catch(() => {});
   }
 
   res.json(getPersonWithDetails(db, req.params.id));
@@ -269,12 +321,19 @@ router.post('/:id/demote', authenticate, requireAdmin, (req, res) => {
 
   logActivity('DEMOTED', `${person.name}: ${person.rank} → ${newRank}`, req.user.id);
 
-  // Sync Discord roles
-  const linkedUser = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
-  if (linkedUser?.discord_id) {
-    syncRankToDiscord(linkedUser.discord_id, person.rank, newRank).catch(err => {
+  const linkedUserD = db.prepare('SELECT discord_id, discord_avatar FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUserD?.discord_id) {
+    syncRankToDiscord(linkedUserD.discord_id, person.rank, newRank).catch(err => {
       console.error('[SYNC] Discord role sync failed:', err.message);
     });
+    announceRankChange(
+      linkedUserD.discord_id,
+      person.name,
+      person.rank,
+      newRank,
+      req.user.display_name,
+      linkedUserD.discord_avatar
+    ).catch(() => {});
   }
 
   res.json(getPersonWithDetails(db, req.params.id));
@@ -295,6 +354,17 @@ router.post('/:id/awards', authenticate, requireAdmin, (req, res) => {
 
   logActivity('AWARD_GRANTED', `${person.name} awarded ${name}`, req.user.id);
 
+  const linkedUserA = db.prepare('SELECT discord_id, discord_avatar FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUserA?.discord_id) {
+    announceAward(
+      linkedUserA.discord_id,
+      person.name,
+      name.trim(),
+      req.user.display_name,
+      linkedUserA.discord_avatar
+    ).catch(() => {});
+  }
+
   const award = db.prepare('SELECT * FROM awards WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(award);
 });
@@ -308,7 +378,22 @@ router.delete('/:id/awards/:awardId', authenticate, requireAdmin, (req, res) => 
   );
   if (!award) return res.status(404).json({ error: 'Award not found' });
 
+  const person = db.prepare('SELECT name FROM personnel WHERE id = ?').get(req.params.id);
+
   db.prepare('DELETE FROM awards WHERE id = ?').run(req.params.awardId);
+
+  logActivity('AWARD_REVOKED', `${person?.name || 'Unknown'} award "${award.name}" revoked`, req.user.id);
+
+  const linkedUserR = db.prepare('SELECT discord_id FROM users WHERE personnel_id = ?').get(req.params.id);
+  if (linkedUserR?.discord_id && person) {
+    announceAwardRevoked(
+      linkedUserR.discord_id,
+      person.name,
+      award.name,
+      req.user.display_name
+    ).catch(() => {});
+  }
+
   res.json({ success: true });
 });
 

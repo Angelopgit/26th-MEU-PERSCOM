@@ -141,21 +141,45 @@ export default function Login() {
         {/* Logo — 26th MEU Insignia */}
         <div className="text-center mb-10">
           <div className="inline-flex flex-col items-center">
-            <div className="w-36 h-36 rounded-full flex items-center justify-center mb-5 overflow-hidden drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-              <img
-                src={logoUrl || '/meu-logo.png'}
-                alt="26th MEU"
-                className="w-full h-full object-contain"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
+
+            {/* Logo with gold ring */}
+            <div className="relative mb-6">
+              {/* Ambient glow */}
+              <div className="absolute rounded-full pointer-events-none" style={{
+                inset: '-16px',
+                background: 'radial-gradient(circle, rgba(212,175,55,0.07) 0%, transparent 70%)',
+              }} />
+              {/* Outer static ring */}
+              <div className="absolute rounded-full pointer-events-none" style={{
+                inset: '-2px',
+                border: '1px solid rgba(212,175,55,0.2)',
+              }} />
+              {/* Image container */}
+              <div
+                className="rounded-full overflow-hidden"
+                style={{
+                  width: '152px',
+                  height: '152px',
+                  border: '2px solid rgba(212,175,55,0.45)',
+                  boxShadow: '0 0 22px rgba(212,175,55,0.15), 0 0 50px rgba(212,175,55,0.06), inset 0 0 18px rgba(0,0,0,0.3)',
+                }}
+              >
+                <img
+                  src={logoUrl || `${import.meta.env.BASE_URL}meu-logo.png`}
+                  alt="26th MEU"
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              </div>
             </div>
+
             <div className="text-[#60a5fa] font-mono text-3xl font-bold tracking-[0.3em] glow-green">
               PERSCOM
             </div>
             <div className="text-[#1a2f55] font-mono text-xs tracking-[0.4em] mt-1.5">
               26TH MEU (SOC)
             </div>
-            <div className="mt-5 w-full h-px bg-gradient-to-r from-transparent via-[#3b82f6]/30 to-transparent" />
+            <div className="mt-5 w-full h-px" style={{ background: 'linear-gradient(to right, transparent, rgba(212,175,55,0.25), transparent)' }} />
           </div>
         </div>
 

@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb } = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 const { logActivity } = require('../utils/logActivity');
+const { announceOrbatAssignment } = require('../discord/announcer');
 
 const router = express.Router();
 
@@ -48,6 +49,25 @@ router.post('/assign', authenticate, (req, res) => {
     person ? `${person.name} assigned to ${slot.name}` : `${slot.name} slot cleared`,
     req.user.id
   );
+
+  // Announce to #bot-commands if a marine was assigned (not cleared)
+  if (person) {
+    const linkedUser = db.prepare('SELECT discord_id, discord_avatar FROM users WHERE personnel_id = ?').get(person.id);
+    if (linkedUser?.discord_id) {
+      // Fetch parent unit name for context
+      const parentSlot = slot.parent_id
+        ? db.prepare('SELECT name FROM orbat_slots WHERE id = ?').get(slot.parent_id)
+        : null;
+      announceOrbatAssignment(
+        linkedUser.discord_id,
+        person.name,
+        slot.name,
+        parentSlot?.name || 'Unknown Unit',
+        req.user.display_name,
+        linkedUser.discord_avatar
+      ).catch(() => {});
+    }
+  }
 
   // Return updated slot
   const updated = db.prepare(`
