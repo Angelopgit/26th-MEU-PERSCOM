@@ -20,6 +20,28 @@ const DISCORD_API = 'https://discord.com/api/v10';
 // Discord IDs that are automatically assigned admin role (comma-separated env var)
 const ADMIN_DISCORD_IDS = (process.env.DISCORD_ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
 
+// Use stored Discord refresh_token to silently renew credentials.
+// grant_type=refresh_token has a much more generous rate limit than authorization_code.
+async function refreshDiscordTokens(refreshToken) {
+  const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET } = process.env;
+  const res = await fetch(`${DISCORD_API}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '(unreadable)');
+    console.warn('[DISCORD] Token refresh failed:', text);
+    return null;
+  }
+  return res.json();
+}
+
 // Exchange an authorization code for tokens with one automatic retry on rate-limit.
 // Discord codes are single-use but the rate-limit is app-wide, so retrying the
 // same request after a short delay is safe and correct.
@@ -69,6 +91,64 @@ const cookieOpts = (maxAgeMs) => ({
   sameSite: isProd ? 'none' : 'lax',
   maxAge: maxAgeMs,
   path: '/',
+});
+
+// Silent session refresh — re-issues a JWT without a new OAuth code exchange.
+// If the current JWT is still valid, just extends it. If expired, uses the stored
+// Discord refresh_token to verify the user is still active and issue a fresh JWT.
+// This keeps returning users logged in without hammering Discord's auth-code rate limit.
+router.post('/refresh', async (req, res) => {
+  const token = req.cookies?.perscom_token;
+  if (!token) return res.status(401).json({ error: 'No session' });
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  // JWT still valid — just extend the expiry, no Discord API call needed
+  if (decoded.exp > now) {
+    const { iat, exp, ...payload } = decoded;
+    const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('perscom_token', newToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
+    return res.json({ user: payload });
+  }
+
+  // JWT expired — use stored Discord refresh_token to silently re-validate
+  const db = getDb();
+  const dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id);
+  if (!dbUser?.discord_refresh_token) {
+    return res.status(401).json({ error: 'Session expired' });
+  }
+
+  const newTokens = await refreshDiscordTokens(dbUser.discord_refresh_token);
+  if (!newTokens) {
+    return res.status(401).json({ error: 'Session expired' });
+  }
+
+  db.prepare('UPDATE users SET discord_access_token = ?, discord_refresh_token = ? WHERE id = ?')
+    .run(newTokens.access_token, newTokens.refresh_token || dbUser.discord_refresh_token, dbUser.id);
+
+  const effectiveRole = ADMIN_DISCORD_IDS.includes(dbUser.discord_id) ? 'admin' : dbUser.role;
+  const payload = {
+    id: dbUser.id,
+    username: dbUser.username || dbUser.discord_username,
+    role: effectiveRole,
+    display_name: dbUser.display_name,
+    discord_id: dbUser.discord_id,
+    discord_username: dbUser.discord_username,
+    discord_avatar: dbUser.discord_avatar,
+    personnel_id: dbUser.personnel_id,
+  };
+
+  const freshToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('perscom_token', freshToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
+  console.log(`[DISCORD] Silent refresh for user ${dbUser.discord_id}`);
+  return res.json({ user: payload });
 });
 
 // Step 1: Redirect to Discord authorization
@@ -175,8 +255,8 @@ router.get('/discord/callback', async (req, res) => {
         personnel_id: existingUser.personnel_id,
       };
 
-      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
-      res.cookie('perscom_token', token, cookieOpts(24 * 60 * 60 * 1000));
+      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+      res.cookie('perscom_token', token, cookieOpts(7 * 24 * 60 * 60 * 1000));
       return res.redirect(`${FRONTEND_ORIGIN}/`);
     }
 
@@ -281,8 +361,8 @@ router.post('/discord/register', (req, res) => {
     personnel_id: personnelId,
   };
 
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
-  res.cookie('perscom_token', token, cookieOpts(24 * 60 * 60 * 1000));
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('perscom_token', token, cookieOpts(7 * 24 * 60 * 60 * 1000));
   res.json({ user: payload });
 });
 
@@ -348,8 +428,8 @@ router.post('/discord/link-personnel', (req, res) => {
     personnel_id: personnelId,
   };
 
-  const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
-  res.cookie('perscom_token', newToken, cookieOpts(24 * 60 * 60 * 1000));
+  const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('perscom_token', newToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
   res.json({ user: payload });
 });
 

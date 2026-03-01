@@ -21,19 +21,31 @@ export function AuthProvider({ children }) {
     const alias = sessionStorage.getItem('perscom_alias');
     if (alias) setAdminAlias(alias);
 
-    // Validate cookie with server
-    api.get('/auth/me')
-      .then((res) => {
+    async function initSession() {
+      try {
+        // Fast path: JWT still valid
+        const res = await api.get('/auth/me');
         setUser(res.data.user);
         localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
-      })
-      .catch(() => {
-        // Cookie missing or expired — clear any stale cache
-        setUser(null);
-        localStorage.removeItem('perscom_user');
-        localStorage.removeItem('perscom_guest');
-      })
-      .finally(() => setLoading(false));
+      } catch {
+        // JWT expired — attempt silent refresh using stored Discord refresh_token.
+        // This avoids a full OAuth round-trip and won't hit the code-exchange rate limit.
+        try {
+          const res = await api.post('/auth/refresh');
+          setUser(res.data.user);
+          localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
+        } catch {
+          // Refresh token also expired/revoked — user must log in again
+          setUser(null);
+          localStorage.removeItem('perscom_user');
+          localStorage.removeItem('perscom_guest');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    initSession();
   }, []);
 
   // Fetch logo once on mount (public endpoint, no auth needed)
