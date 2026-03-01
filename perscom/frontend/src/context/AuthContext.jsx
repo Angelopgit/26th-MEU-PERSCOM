@@ -27,15 +27,26 @@ export function AuthProvider({ children }) {
         const res = await api.get('/auth/me');
         setUser(res.data.user);
         localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
-      } catch {
-        // JWT expired — attempt silent refresh using stored Discord refresh_token.
-        // This avoids a full OAuth round-trip and won't hit the code-exchange rate limit.
-        try {
-          const res = await api.post('/auth/refresh');
-          setUser(res.data.user);
-          localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
-        } catch {
-          // Refresh token also expired/revoked — user must log in again
+      } catch (err) {
+        // Only attempt silent refresh when the server says the token is expired/invalid.
+        // If there is simply no session ("Unauthorized"), skip the extra call — it would
+        // just add latency and show a blank screen while the round-trip completes.
+        const serverMsg = err.response?.data?.error || '';
+        const tokenExpired = serverMsg.toLowerCase().includes('expired') ||
+                             serverMsg.toLowerCase().includes('invalid');
+
+        if (tokenExpired) {
+          try {
+            const res = await api.post('/auth/refresh');
+            setUser(res.data.user);
+            localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
+          } catch {
+            setUser(null);
+            localStorage.removeItem('perscom_user');
+            localStorage.removeItem('perscom_guest');
+          }
+        } else {
+          // No session at all — clear stale cache and show login immediately
           setUser(null);
           localStorage.removeItem('perscom_user');
           localStorage.removeItem('perscom_guest');
