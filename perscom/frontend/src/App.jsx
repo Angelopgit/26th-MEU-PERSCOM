@@ -52,12 +52,13 @@ function AuthRoute({ children }) {
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, isGuest } = useAuth();
   if (loading) return <Loader />;
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      {/* Don't redirect guests to "/" — ProtectedRoute blocks them there and causes an infinite loop */}
+      <Route path="/login" element={(user && !isGuest) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<AuthRoute><Layout /></AuthRoute>}>
         {/* Staff-only routes (admin + moderator only, not marines) */}

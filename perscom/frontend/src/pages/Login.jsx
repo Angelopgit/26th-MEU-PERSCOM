@@ -44,7 +44,7 @@ function AliasSelectorModal({ onSelect }) {
 }
 
 export default function Login() {
-  const { login, enterGuest, selectAlias, logoUrl } = useAuth();
+  const { login, enterGuest, selectAlias, logoUrl, logout, isGuest } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ username: '', password: '' });
@@ -52,6 +52,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const [showAlias, setShowAlias] = useState(false);
+
+  // Clear stale guest sessions when the login page mounts so the cookie doesn't
+  // interfere with a fresh login attempt.
+  useEffect(() => {
+    if (isGuest) logout();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check for Discord OAuth errors in URL params
   useEffect(() => {
