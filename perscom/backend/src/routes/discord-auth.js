@@ -198,6 +198,7 @@ router.get('/discord/callback', async (req, res) => {
     });
 
     if (!tokens) {
+      console.error('[DISCORD] Step 1 FAILED: token exchange returned null');
       return res.redirect(`${FRONTEND_ORIGIN}/login?error=token_failed`);
     }
 
@@ -206,27 +207,45 @@ router.get('/discord/callback', async (req, res) => {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
     if (!userRes.ok) {
+      console.error(`[DISCORD] Step 2 FAILED: /users/@me returned ${userRes.status}`);
       return res.redirect(`${FRONTEND_ORIGIN}/login?error=user_fetch_failed`);
     }
     const discordUser = await userRes.json();
+    console.log(`[DISCORD] OAuth attempt: id=${discordUser.id} username=${discordUser.username}`);
 
     // Fetch guild member info to check roles
     let hasPersonnelRole = true; // Default true if role check is not configured
-    if (DISCORD_GUILD_ID) {
+
+    // Users in DISCORD_ADMIN_IDS bypass the role gate entirely
+    const isAdminUser = ADMIN_DISCORD_IDS.includes(discordUser.id);
+
+    if (DISCORD_GUILD_ID && !isAdminUser) {
       const memberRes = await fetch(`${DISCORD_API}/users/@me/guilds/${DISCORD_GUILD_ID}/member`, {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
       });
 
       if (!memberRes.ok) {
+        console.warn(`[DISCORD] Step 3 FAILED: user ${discordUser.id} (${discordUser.username}) not in guild — HTTP ${memberRes.status}`);
         return res.redirect(`${FRONTEND_ORIGIN}/login?error=not_in_server`);
       }
 
       const member = await memberRes.json();
 
-      // Check for "26th Marine Personnel" role if configured
+      // Accept Personnel role OR Staff role (DISCORD_ROLE_STAFF env var)
+      // This allows users with a Staff/Command role to log in even without the Personnel role
+      const { DISCORD_ROLE_STAFF } = process.env;
       if (DISCORD_ROLE_PERSONNEL) {
-        hasPersonnelRole = member.roles.includes(DISCORD_ROLE_PERSONNEL);
+        const hasPersonnel = member.roles.includes(DISCORD_ROLE_PERSONNEL);
+        const hasStaff     = DISCORD_ROLE_STAFF ? member.roles.includes(DISCORD_ROLE_STAFF) : false;
+        hasPersonnelRole   = hasPersonnel || hasStaff;
+        if (!hasPersonnelRole) {
+          console.warn(`[DISCORD] Step 4 FAILED: user ${discordUser.id} (${discordUser.username}) missing required role. Has: [${member.roles.join(', ')}]`);
+        } else if (hasStaff && !hasPersonnel) {
+          console.log(`[DISCORD] user ${discordUser.id} admitted via Staff role`);
+        }
       }
+    } else if (isAdminUser) {
+      console.log(`[DISCORD] user ${discordUser.id} bypassed role check (ADMIN_DISCORD_IDS)`);
     }
 
     if (!hasPersonnelRole) {
@@ -236,6 +255,7 @@ router.get('/discord/callback', async (req, res) => {
     // Look up existing user by discord_id
     const db = getDb();
     const existingUser = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(discordUser.id);
+    console.log(`[DISCORD] DB lookup for ${discordUser.id}: ${existingUser ? `found (id=${existingUser.id}, role=${existingUser.role})` : 'not registered — redirecting to /register'}`);
 
     if (existingUser) {
       // Returning user — update Discord info and issue session
