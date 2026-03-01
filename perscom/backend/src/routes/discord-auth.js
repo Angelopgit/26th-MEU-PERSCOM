@@ -24,22 +24,32 @@ const ADMIN_DISCORD_IDS = (process.env.DISCORD_ADMIN_IDS || '').split(',').map(i
 // grant_type=refresh_token has a much more generous rate limit than authorization_code.
 async function refreshDiscordTokens(refreshToken) {
   const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET } = process.env;
-  const res = await fetch(`${DISCORD_API}/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: DISCORD_CLIENT_ID,
-      client_secret: DISCORD_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '(unreadable)');
-    console.warn('[DISCORD] Token refresh failed:', text);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${DISCORD_API}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: DISCORD_CLIENT_ID,
+        client_secret: DISCORD_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '(unreadable)');
+      console.warn('[DISCORD] Token refresh failed:', text);
+      return null;
+    }
+    return res.json();
+  } catch (err) {
+    clearTimeout(timer);
+    console.warn('[DISCORD] Token refresh error:', err.message);
     return null;
   }
-  return res.json();
 }
 
 // Exchange an authorization code for tokens with one automatic retry on rate-limit.

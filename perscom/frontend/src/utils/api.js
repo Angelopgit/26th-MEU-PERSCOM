@@ -12,9 +12,10 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      // Don't redirect on the session-check call itself — AuthContext handles that 401
-      // in its own catch block. Redirecting here would cause an infinite reload loop.
-      const isSessionCheck = err.config?.url?.endsWith('/auth/me');
+      // Don't redirect on session-check or silent-refresh calls — AuthContext handles
+      // those 401s itself. Redirecting here would cause an infinite reload loop.
+      const url = err.config?.url || '';
+      const isSessionCheck = url.endsWith('/auth/me') || url.endsWith('/auth/refresh');
       if (!isSessionCheck) {
         localStorage.removeItem('perscom_user');
         localStorage.removeItem('perscom_guest');
