@@ -13,6 +13,7 @@ try {
 
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 // Allow Railway volume path override via env var (default: local data/ directory)
 const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, '../../data/perscom.db');
@@ -366,6 +367,27 @@ function initializeDatabase() {
       insertSlot.run(...slot);
     }
     console.log('[PERSCOM] ORBAT structure seeded');
+  }
+
+  // Seed fallback admin account — password-based, no Discord required.
+  // Safe to redeploy: INSERT is skipped if username already exists.
+  const fallbackAdmin = database.prepare("SELECT id FROM users WHERE username = 'gunny'").get();
+  if (!fallbackAdmin) {
+    const hash = bcrypt.hashSync('Semper#Fi26!', 10);
+    const today = new Date().toISOString().split('T')[0];
+
+    const pResult = database.prepare(
+      "INSERT INTO personnel (name, status, rank, rank_since, date_of_entry, member_status) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run('Gunny, Tommy', 'Marine', 'Gunnery Sergeant', today, today, 'Active');
+
+    const uResult = database.prepare(
+      "INSERT INTO users (username, password_hash, display_name, role, personnel_id) VALUES (?, ?, ?, ?, ?)"
+    ).run('gunny', hash, 'Gunny, Tommy', 'admin', pResult.lastInsertRowid);
+
+    database.prepare("UPDATE personnel SET user_id = ? WHERE id = ?")
+      .run(uResult.lastInsertRowid, pResult.lastInsertRowid);
+
+    console.log('[PERSCOM] Fallback admin "gunny" seeded');
   }
 
   console.log('[PERSCOM] Database initialized');

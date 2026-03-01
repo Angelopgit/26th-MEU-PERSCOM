@@ -40,10 +40,10 @@ router.post('/login', (req, res) => {
     personnel_id: user.personnel_id || null,
   };
 
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
   // Token goes into httpOnly cookie only — never in the response body
-  res.cookie('perscom_token', token, cookieOpts(24 * 60 * 60 * 1000));
+  res.cookie('perscom_token', token, cookieOpts(7 * 24 * 60 * 60 * 1000));
   res.json({ user: payload });
 });
 
