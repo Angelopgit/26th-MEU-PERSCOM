@@ -20,6 +20,47 @@ const DISCORD_API = 'https://discord.com/api/v10';
 // Discord IDs that are automatically assigned admin role (comma-separated env var)
 const ADMIN_DISCORD_IDS = (process.env.DISCORD_ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
 
+// Exchange an authorization code for tokens with one automatic retry on rate-limit.
+// Discord codes are single-use but the rate-limit is app-wide, so retrying the
+// same request after a short delay is safe and correct.
+async function exchangeCodeForTokens(params) {
+  const body = new URLSearchParams(params);
+
+  const attempt = () => fetch(`${DISCORD_API}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  let res = await attempt();
+
+  if (!res.ok) {
+    let errText;
+    try { errText = await res.text(); } catch { errText = '(unreadable)'; }
+
+    let errData = {};
+    try { errData = JSON.parse(errText); } catch {}
+
+    const isRateLimit =
+      errData.error === 'invalid_request' &&
+      typeof errData.error_description === 'string' &&
+      errData.error_description.toLowerCase().includes('rate limit');
+
+    if (isRateLimit) {
+      console.warn('[DISCORD] Token exchange rate-limited — retrying in 6s...');
+      await new Promise(r => setTimeout(r, 6000));
+      res = await attempt();
+    }
+
+    if (!res.ok) {
+      console.error('[DISCORD] Token exchange failed:', errText);
+      return null;
+    }
+  }
+
+  return res.json();
+}
+
 const cookieOpts = (maxAgeMs) => ({
   httpOnly: true,
   secure: isProd,
@@ -57,25 +98,18 @@ router.get('/discord/callback', async (req, res) => {
   const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, DISCORD_GUILD_ID, DISCORD_ROLE_PERSONNEL } = process.env;
 
   try {
-    // Exchange code for tokens
-    const tokenRes = await fetch(`${DISCORD_API}/oauth2/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: DISCORD_REDIRECT_URI,
-      }),
+    // Exchange code for tokens (auto-retries once on rate-limit)
+    const tokens = await exchangeCodeForTokens({
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: DISCORD_REDIRECT_URI,
     });
 
-    if (!tokenRes.ok) {
-      console.error('[DISCORD] Token exchange failed:', await tokenRes.text());
+    if (!tokens) {
       return res.redirect(`${FRONTEND_ORIGIN}/login?error=token_failed`);
     }
-
-    const tokens = await tokenRes.json();
 
     // Fetch user profile
     const userRes = await fetch(`${DISCORD_API}/users/@me`, {
