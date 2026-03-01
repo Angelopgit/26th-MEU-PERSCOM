@@ -301,8 +301,10 @@ router.get('/discord/callback', async (req, res) => {
     };
 
     const regToken = jwt.sign(regPayload, process.env.JWT_SECRET, { expiresIn: '10m' });
+    // Pass token in URL so the register page works even when cross-domain cookies are
+    // blocked (Brave, Firefox strict mode). Cookie is kept as a fallback.
     res.cookie('perscom_reg', regToken, cookieOpts(10 * 60 * 1000));
-    return res.redirect(`${FRONTEND_ORIGIN}/register`);
+    return res.redirect(`${FRONTEND_ORIGIN}/register?rt=${encodeURIComponent(regToken)}`);
 
   } catch (err) {
     console.error('[DISCORD] OAuth callback error:', err);
@@ -311,8 +313,10 @@ router.get('/discord/callback', async (req, res) => {
 });
 
 // Step 3: First-time Marine registration
+// Accepts the registration token from the request body (rt) OR the perscom_reg cookie.
+// Body token is preferred — it works even when cross-domain cookies are blocked.
 router.post('/discord/register', (req, res) => {
-  const regToken = req.cookies?.perscom_reg;
+  const regToken = req.body?.rt || req.cookies?.perscom_reg;
   if (!regToken) {
     return res.status(401).json({ error: 'Registration session expired. Please sign in with Discord again.' });
   }
@@ -463,9 +467,10 @@ router.post('/discord/link-personnel', (req, res) => {
   res.json({ user: payload });
 });
 
-// Get registration info from the temp cookie (for the Register page to display Discord avatar/name)
+// Get registration info from the temp cookie OR the rt URL param.
+// rt param is preferred — it works even when cross-domain cookies are blocked.
 router.get('/discord/register-info', (req, res) => {
-  const regToken = req.cookies?.perscom_reg;
+  const regToken = req.query?.rt || req.cookies?.perscom_reg;
   if (!regToken) {
     return res.status(401).json({ error: 'No registration session' });
   }

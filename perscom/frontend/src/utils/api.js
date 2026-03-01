@@ -16,7 +16,9 @@ api.interceptors.response.use(
       // those 401s itself. Redirecting here would cause an infinite reload loop.
       const url = err.config?.url || '';
       const isSessionCheck = url.endsWith('/auth/me') || url.endsWith('/auth/refresh');
-      if (!isSessionCheck) {
+      // Don't redirect during the registration flow — Register.jsx handles its own 401s
+      const isRegisterFlow = url.includes('/discord/register');
+      if (!isSessionCheck && !isRegisterFlow) {
         localStorage.removeItem('perscom_user');
         localStorage.removeItem('perscom_guest');
         sessionStorage.removeItem('perscom_alias');

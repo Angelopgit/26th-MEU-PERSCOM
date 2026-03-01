@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Loader2, UserPlus } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,8 @@ import MeuLogo from '../assets/MeuLogo';
 export default function Register() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rt = searchParams.get('rt'); // registration token passed in URL (cookie-free fallback)
   const [discordInfo, setDiscordInfo] = useState(null);
   const [name, setName]   = useState('');
   const [error, setError]  = useState('');
@@ -19,22 +21,28 @@ export default function Register() {
     if (user) navigate('/', { replace: true });
   }, [user, navigate]);
 
-  // Fetch Discord info from registration session
+  // Fetch Discord info — pass rt as query param so it works even when
+  // the perscom_reg cookie is blocked by strict browser privacy settings.
   useEffect(() => {
-    api.get('/auth/discord/register-info')
+    const url = rt
+      ? `/auth/discord/register-info?rt=${encodeURIComponent(rt)}`
+      : '/auth/discord/register-info';
+    api.get(url)
       .then((res) => setDiscordInfo(res.data))
       .catch(() => {
         setError('Registration session expired. Please sign in with Discord again.');
       })
       .finally(() => setFetching(false));
-  }, []);
+  }, [rt]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = await api.post('/auth/discord/register', { name: name.trim() });
+      const body = { name: name.trim() };
+      if (rt) body.rt = rt; // pass token in body so it works without cookies
+      const res = await api.post('/auth/discord/register', body);
       localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
       // Force a page reload to re-validate session (use BASE_URL so it works at /perscom/)
       window.location.href = import.meta.env.BASE_URL;
