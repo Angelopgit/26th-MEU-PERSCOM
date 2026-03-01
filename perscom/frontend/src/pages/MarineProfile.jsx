@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Star, Shield, Clock, Calendar, Award,
   CheckSquare, Loader2, Plus, X, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle,
+  CheckCircle2, AlertTriangle, Target,
 } from 'lucide-react';
 import { differenceInDays, format, formatDistanceToNow } from 'date-fns';
 import api from '../utils/api';
@@ -109,6 +109,7 @@ export default function MarineProfile() {
   const [evalsExpanded, setEvalsExpanded] = useState(false);
   const [removingQual, setRemovingQual] = useState(null);
   const [discordRoles, setDiscordRoles] = useState([]);
+  const [attendance, setAttendance] = useState(null);
 
   const fetchPerson = useCallback(async () => {
     setLoading(true);
@@ -131,6 +132,14 @@ export default function MarineProfile() {
       .then((res) => setDiscordRoles(res.data.roles || []))
       .catch(() => setDiscordRoles([]));
   }, [id, person?.discord?.discord_id]);
+
+  // Fetch attendance stats
+  useEffect(() => {
+    if (!person) return;
+    api.get(`/attendance/personnel/${id}`)
+      .then((res) => setAttendance(res.data))
+      .catch(() => setAttendance(null));
+  }, [id, person]);
 
   const handleRemoveQual = async (qualId) => {
     setRemovingQual(qualId);
@@ -268,7 +277,7 @@ export default function MarineProfile() {
       </div>
 
       {/* Metrics row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <MetricCard label="Time in Service" value={tis} icon={Clock} color="text-[#60a5fa]" />
         <MetricCard
           label="Time in Grade"
@@ -278,10 +287,22 @@ export default function MarineProfile() {
         />
         <MetricCard label="Date Registered" value={person.date_of_entry} icon={Calendar} color="text-[#dbeafe]" />
         <MetricCard
-          label="Eval Status"
-          value={person.evaluations?.length > 0 ? `${person.evaluations.length} evals` : 'None'}
+          label="Evals"
+          value={person.evaluations?.length > 0 ? person.evaluations.length : 0}
           icon={CheckSquare}
           color="text-[#4a6fa5]"
+        />
+        <MetricCard
+          label="Operations"
+          value={attendance ? attendance.ops : '—'}
+          icon={Target}
+          color="text-[#60a5fa]"
+        />
+        <MetricCard
+          label="Trainings"
+          value={attendance ? attendance.trainings : '—'}
+          icon={Target}
+          color="text-amber-400"
         />
       </div>
 
@@ -418,6 +439,40 @@ export default function MarineProfile() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Attendance History */}
+      {attendance && attendance.total > 0 && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#162448]">
+            <Target size={13} className="text-[#3b82f6]" />
+            <span className="section-header">Attendance History</span>
+            <span className="ml-auto text-[#1a2f55] text-xs font-mono">{attendance.total} events</span>
+          </div>
+          <div>
+            {attendance.records.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#162448]/40 last:border-0">
+                <span className="text-[9px]">{r.type === 'Training' ? '🎯' : '⚔️'}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[#dbeafe] text-xs truncate">
+                    <span className="text-[#1a2f55] font-mono mr-1">#{r.operation_id}</span>
+                    {r.title}
+                  </div>
+                  <div className="text-[#1a2f55] text-[9px] font-mono">
+                    {r.start_date} · marked by {r.marked_by_name}
+                  </div>
+                </div>
+                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm border ${
+                  r.type === 'Training'
+                    ? 'text-amber-400/70 border-amber-900/40'
+                    : 'text-[#60a5fa]/70 border-[#162448]'
+                }`}>
+                  {r.type?.toUpperCase()}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

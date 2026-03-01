@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FileText, Package, Clock, Plus, Edit2, Trash2, Loader2,
-  Bold, Italic, X, ChevronDown, ChevronUp, AlertTriangle,
+  Bold, Italic, X, ChevronDown, ChevronUp, AlertTriangle, Image,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -148,8 +148,44 @@ function RichTextEditor({ value, onChange }) {
 }
 
 // ── Document card ─────────────────────────────────────────────────────────────
-function DocCard({ doc, isAdmin, onEdit, onDelete }) {
+function DocCard({ doc, isAdmin, onEdit, onDelete, onImagesChange }) {
   const [expanded, setExpanded] = useState(false);
+  const [images, setImages] = useState(doc.images || []);
+  const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const fileRef = useRef(null);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await api.post(`/documents/${doc.id}/images`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const updated = [...images, res.data];
+      setImages(updated);
+      onImagesChange?.(doc.id, updated);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteImage = async (imgId) => {
+    try {
+      await api.delete(`/documents/${doc.id}/images/${imgId}`);
+      const updated = images.filter((i) => i.id !== imgId);
+      setImages(updated);
+      onImagesChange?.(doc.id, updated);
+    } catch {
+      alert('Failed to delete image');
+    }
+  };
 
   return (
     <div className="card overflow-hidden">
@@ -161,6 +197,11 @@ function DocCard({ doc, isAdmin, onEdit, onDelete }) {
           <div className="flex items-center gap-2">
             <FileText size={12} className="text-[#3b82f6] shrink-0" />
             <h3 className="text-[#dbeafe] text-sm font-medium truncate">{doc.title}</h3>
+            {images.length > 0 && (
+              <span className="text-[#1a2f55] text-[9px] font-mono flex items-center gap-1">
+                <Image size={8} /> {images.length}
+              </span>
+            )}
           </div>
           <div className="text-[#1a2f55] text-[10px] font-mono mt-0.5">
             {doc.author} · {format(parseISO(doc.created_at), 'MMM dd, yyyy')}
@@ -191,11 +232,63 @@ function DocCard({ doc, isAdmin, onEdit, onDelete }) {
           {expanded ? <ChevronUp size={14} className="text-[#2a4a80]" /> : <ChevronDown size={14} className="text-[#2a4a80]" />}
         </div>
       </div>
-      {expanded && doc.content && (
-        <div
-          className="px-4 pb-4 pt-1 border-t border-[#162448]/50 text-sm text-[#93c5fd] leading-relaxed rich-content"
-          dangerouslySetInnerHTML={{ __html: doc.content }}
-        />
+
+      {expanded && (
+        <div className="border-t border-[#162448]/50">
+          {doc.content && (
+            <div
+              className="px-4 pb-4 pt-3 text-sm text-[#93c5fd] leading-relaxed rich-content"
+              dangerouslySetInnerHTML={{ __html: doc.content }}
+            />
+          )}
+
+          {/* Images section */}
+          {(images.length > 0 || isAdmin) && (
+            <div className={`px-4 pb-4 ${doc.content ? 'border-t border-[#162448]/30 pt-3' : 'pt-3'}`}>
+              {images.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {images.map((img) => (
+                    <div key={img.id} className="relative group/img">
+                      <img
+                        src={img.image_url}
+                        alt=""
+                        className="h-24 w-auto object-cover rounded-sm border border-[#162448] cursor-pointer hover:border-[#3b82f6]/40 transition-colors"
+                        onClick={() => setLightbox(img.image_url)}
+                      />
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteImage(img.id)}
+                          className="absolute top-1 right-1 bg-[#06091a]/90 border border-red-900/50 rounded-sm p-0.5 text-red-400 opacity-0 group-hover/img:opacity-100 transition-opacity"
+                          title="Delete image"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1.5 text-[#1a2f55] hover:text-[#4a6fa5] text-[10px] font-mono transition-colors"
+                >
+                  {uploading ? <Loader2 size={10} className="animate-spin" /> : <Image size={10} />}
+                  {uploading ? 'Uploading...' : 'Add Image'}
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-8" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-sm" />
+        </div>
       )}
     </div>
   );
@@ -558,6 +651,9 @@ export default function Documents() {
                 isAdmin={isAdmin}
                 onEdit={(d) => setDocModal(d)}
                 onDelete={(d) => setDeleteDoc(d)}
+                onImagesChange={(docId, imgs) =>
+                  setDocs((prev) => prev.map((d) => d.id === docId ? { ...d, images: imgs } : d))
+                }
               />
             ))
           )}

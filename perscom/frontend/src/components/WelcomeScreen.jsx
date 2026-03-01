@@ -6,7 +6,8 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     const seen = localStorage.getItem('perscom_welcome_seen');
-    if (!seen) {
+    const isAuthPage = /\/(login|register)/.test(window.location.pathname);
+    if (!seen && !isAuthPage) {
       setVisible(true);
       const timer = setTimeout(() => {
         setFading(true);

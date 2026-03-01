@@ -30,35 +30,39 @@ router.get('/', authenticate, (req, res) => {
 });
 
 router.post('/', authenticate, requireAdmin, (req, res) => {
-  const { title, description, start_date, end_date } = req.body;
+  const { title, description, start_date, end_date, type } = req.body;
   if (!title || !start_date) {
     return res.status(400).json({ error: 'Title and start date are required' });
   }
 
+  const opType = ['Operation', 'Training'].includes(type) ? type : 'Operation';
   const db = getDb();
   const result = db.prepare(
-    'INSERT INTO operations (title, description, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?)'
-  ).run(title.trim(), description || null, start_date, end_date || null, req.user.id);
+    'INSERT INTO operations (title, description, start_date, end_date, created_by, type) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(title.trim(), description || null, start_date, end_date || null, req.user.id, opType);
 
-  logActivity('OPERATION_CREATED', `Operation: ${title}`, req.user.id);
+  logActivity('OPERATION_CREATED', `${opType}: ${title}`, req.user.id);
 
   res.status(201).json(getOpWithCreator(db, result.lastInsertRowid));
 });
 
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
-  const { title, description, start_date, end_date } = req.body;
+  const { title, description, start_date, end_date, type } = req.body;
   const db = getDb();
 
   const op = db.prepare('SELECT * FROM operations WHERE id = ?').get(req.params.id);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
 
+  const opType = ['Operation', 'Training'].includes(type) ? type : (op.type || 'Operation');
+
   db.prepare(
-    'UPDATE operations SET title = ?, description = ?, start_date = ?, end_date = ? WHERE id = ?'
+    'UPDATE operations SET title = ?, description = ?, start_date = ?, end_date = ?, type = ? WHERE id = ?'
   ).run(
     title || op.title,
     description !== undefined ? description : op.description,
     start_date || op.start_date,
     end_date !== undefined ? end_date : op.end_date,
+    opType,
     req.params.id
   );
 
@@ -111,6 +115,59 @@ router.delete('/:id/image', authenticate, requireAdmin, (req, res) => {
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
   db.prepare('UPDATE operations SET image_url = NULL WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Attendance endpoints ───────────────────────────────────────────────────
+
+// GET /api/operations/:id/attendance — list who attended
+router.get('/:id/attendance', authenticate, (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT a.id, a.personnel_id, a.created_at,
+           p.name AS marine_name, p.rank,
+           u.display_name AS marked_by_name
+    FROM attendance a
+    JOIN personnel p ON a.personnel_id = p.id
+    JOIN users u ON a.marked_by = u.id
+    WHERE a.operation_id = ?
+    ORDER BY p.name ASC
+  `).all(req.params.id);
+  res.json(rows);
+});
+
+// POST /api/operations/:id/attendance — mark a marine as attended (admin/mod)
+router.post('/:id/attendance', authenticate, requireAdmin, (req, res) => {
+  const { personnel_id } = req.body;
+  if (!personnel_id) return res.status(400).json({ error: 'personnel_id required' });
+
+  const db = getDb();
+  const op = db.prepare('SELECT * FROM operations WHERE id = ?').get(req.params.id);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(personnel_id);
+  if (!person) return res.status(404).json({ error: 'Personnel not found' });
+
+  try {
+    db.prepare(
+      'INSERT INTO attendance (operation_id, personnel_id, marked_by) VALUES (?, ?, ?)'
+    ).run(req.params.id, personnel_id, req.user.id);
+  } catch {
+    return res.status(409).json({ error: 'Already marked as attended' });
+  }
+
+  logActivity('ATTENDANCE_MARKED', `${person.name} marked present for: ${op.title}`, req.user.id);
+  res.status(201).json({ success: true });
+});
+
+// DELETE /api/operations/:id/attendance/:personnel_id — remove attendance (admin/mod)
+router.delete('/:id/attendance/:personnel_id', authenticate, requireAdmin, (req, res) => {
+  const db = getDb();
+  const result = db.prepare(
+    'DELETE FROM attendance WHERE operation_id = ? AND personnel_id = ?'
+  ).run(req.params.id, req.params.personnel_id);
+
+  if (result.changes === 0) return res.status(404).json({ error: 'Attendance record not found' });
   res.json({ success: true });
 });
 

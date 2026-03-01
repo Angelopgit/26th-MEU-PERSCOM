@@ -243,12 +243,33 @@ function initializeDatabase() {
       sort_order INTEGER DEFAULT 0,
       FOREIGN KEY (loadout_id) REFERENCES gear_loadouts(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      operation_id INTEGER NOT NULL,
+      personnel_id INTEGER NOT NULL,
+      marked_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(operation_id, personnel_id),
+      FOREIGN KEY (operation_id) REFERENCES operations(id) ON DELETE CASCADE,
+      FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE CASCADE,
+      FOREIGN KEY (marked_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS document_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL,
+      image_url TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    );
   `);
 
   // Add columns to existing tables (idempotent — catches error if column exists)
   try { database.exec("ALTER TABLE personnel ADD COLUMN member_status TEXT NOT NULL DEFAULT 'Active'"); } catch {}
   try { database.exec('ALTER TABLE operations ADD COLUMN image_url TEXT'); } catch {}
   try { database.exec('ALTER TABLE personnel ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL'); } catch {}
+  try { database.exec("ALTER TABLE operations ADD COLUMN type TEXT NOT NULL DEFAULT 'Operation'"); } catch {}
 
   // ── Discord OAuth migration ────────────────────────────────────────────────
   // Migrate users table to support Discord auth and marine role.

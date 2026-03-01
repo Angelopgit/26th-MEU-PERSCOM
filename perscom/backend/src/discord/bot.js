@@ -36,6 +36,8 @@ async function startBot() {
     require('./commands/demote'),
     require('./commands/lookup'),
     require('./commands/status'),
+    require('./commands/attendance'),
+    require('./commands/gear'),
   ];
 
   for (const cmd of commands) {

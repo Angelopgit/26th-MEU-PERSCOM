@@ -40,6 +40,21 @@ const logoUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
 });
 
-// Default export stays backwards-compatible; logoUpload is a named property
+// Document image upload — saves as doc-<id>-<timestamp>.<ext>
+const documentStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `doc-${req.params.id}-${Date.now()}${ext}`);
+  },
+});
+const documentUpload = multer({
+  storage: documentStorage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+});
+
+// Default export stays backwards-compatible; named exports as properties
 operationUpload.logoUpload = logoUpload;
+operationUpload.documentUpload = documentUpload;
 module.exports = operationUpload;

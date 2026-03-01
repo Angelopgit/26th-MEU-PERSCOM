@@ -19,7 +19,7 @@ const NAV_ITEMS = [
   { to: '/personnel',   icon: Users,           label: 'Personnel',   end: false, guestHide: false, marineHide: false },
   { to: '/roster',      icon: Target,          label: 'Roster',      end: false, guestHide: false, marineHide: false },
   { to: '/documents',   icon: BookOpen,        label: 'Documents',   end: false, guestHide: false, marineHide: false },
-  { to: '/operations',  icon: Map,             label: 'Operations',  end: false, guestHide: true,  marineHide: false },
+  { to: '/operations',  icon: Map,             label: 'Ops / Training', end: false, guestHide: true,  marineHide: false },
   { to: '/evaluations', icon: ClipboardList,   label: 'Evaluations', end: false, guestHide: true,  marineHide: true  },
   { to: '/eventlog',    icon: ScrollText,      label: 'Event Log',   end: false, guestHide: true,  marineHide: true  },
   { to: '/settings',    icon: Settings,        label: 'Settings',    end: false, guestHide: true,  marineHide: true, adminOnly: true },

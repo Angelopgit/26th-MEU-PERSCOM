@@ -1,35 +1,54 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Edit2, Trash2, Loader2, Calendar, CheckCircle, Radio, Image, X } from 'lucide-react';
+import {
+  Plus, Edit2, Trash2, Loader2, Calendar, CheckCircle, Radio,
+  Image, X, Users, ChevronDown, ChevronUp, UserCheck, UserMinus,
+} from 'lucide-react';
 import { format, isPast, parseISO } from 'date-fns';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 
-const BACKEND = ''; // Vite proxy in dev; same-origin in production
+const BACKEND = '';
 
 function opStatus(op) {
   if (!op.end_date) return 'ACTIVE';
   return isPast(parseISO(op.end_date)) ? 'COMPLETED' : 'ACTIVE';
 }
 
-const BLANK = { title: '', description: '', start_date: '', end_date: '' };
+const BLANK = { title: '', description: '', start_date: '', end_date: '', type: 'Operation' };
 
 function OpForm({ initial = BLANK, onSave, onCancel, saving }) {
   const [form, setForm] = useState(initial);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(form);
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} className="space-y-4">
+      {/* Type selector */}
       <div>
-        <label className="label">Operation Title</label>
+        <label className="label">Type</label>
+        <div className="flex gap-2">
+          {['Operation', 'Training'].map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => set('type', t)}
+              className={`flex-1 py-2 text-xs font-mono rounded-sm border transition-colors ${
+                form.type === t
+                  ? 'bg-[#3b82f6]/15 text-[#60a5fa] border-[#3b82f6]/50'
+                  : 'text-[#4a6fa5] border-[#162448] hover:border-[#3b82f6]/30'
+              }`}
+            >
+              {t === 'Operation' ? '⚔️' : '🎯'} {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="label">{form.type} Title</label>
         <input
           className="input-field"
-          placeholder="Operation Name"
+          placeholder={form.type === 'Operation' ? 'Operation Name' : 'Training Exercise Name'}
           value={form.title}
           onChange={(e) => set('title', e.target.value)}
           required
@@ -68,7 +87,6 @@ function OpForm({ initial = BLANK, onSave, onCancel, saving }) {
   );
 }
 
-// Image upload control for an operation card
 function OpImageSection({ op, onImageUpdate }) {
   const { isAdmin } = useAuth();
   const fileRef = useRef(null);
@@ -132,17 +150,9 @@ function OpImageSection({ op, onImageUpdate }) {
               </button>
             </div>
           )}
-          {/* Lightbox */}
           {lightbox && (
-            <div
-              className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-8"
-              onClick={() => setLightbox(false)}
-            >
-              <img
-                src={`${BACKEND}${op.image_url}`}
-                alt={op.title}
-                className="max-w-full max-h-full object-contain rounded-sm"
-              />
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-8" onClick={() => setLightbox(false)}>
+              <img src={`${BACKEND}${op.image_url}`} alt={op.title} className="max-w-full max-h-full object-contain rounded-sm" />
             </div>
           )}
         </div>
@@ -161,11 +171,152 @@ function OpImageSection({ op, onImageUpdate }) {
   );
 }
 
+function AttendancePanel({ op }) {
+  const { isAdmin } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [attendance, setAttendance] = useState([]);
+  const [personnel, setPersonnel] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [marking, setMarking] = useState(null);
+
+  const fetchAttendance = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/operations/${op.id}/attendance`);
+      setAttendance(res.data);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [op.id]);
+
+  useEffect(() => {
+    if (open) {
+      fetchAttendance();
+      if (isAdmin && personnel.length === 0) {
+        api.get('/personnel').then(r => setPersonnel(r.data)).catch(() => {});
+      }
+    }
+  }, [open, fetchAttendance, isAdmin, personnel.length]);
+
+  const markAttendance = async (personnelId) => {
+    setMarking(personnelId);
+    try {
+      await api.post(`/operations/${op.id}/attendance`, { personnel_id: personnelId });
+      fetchAttendance();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to mark attendance');
+    } finally { setMarking(null); }
+  };
+
+  const removeAttendance = async (personnelId) => {
+    setMarking(personnelId);
+    try {
+      await api.delete(`/operations/${op.id}/attendance/${personnelId}`);
+      fetchAttendance();
+    } catch { alert('Failed to remove attendance'); }
+    finally { setMarking(null); }
+  };
+
+  const attendedIds = new Set(attendance.map(a => a.personnel_id));
+  const filteredPersonnel = personnel.filter(p =>
+    p.status === 'Marine' && p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="mt-3 border-t border-[#162448]/60 pt-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-xs font-mono text-[#4a6fa5] hover:text-[#93c5fd] transition-colors"
+      >
+        <Users size={12} />
+        <span>ATTENDANCE</span>
+        <span className="text-[#1a2f55]">({attendance.length || '...'})</span>
+        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-3">
+          {/* Attended list */}
+          {loading ? (
+            <div className="flex justify-center py-3">
+              <Loader2 size={14} className="animate-spin text-[#3b82f6]" />
+            </div>
+          ) : attendance.length === 0 ? (
+            <p className="text-[#1a2f55] text-[10px] font-mono text-center py-2">NO ATTENDANCE RECORDED</p>
+          ) : (
+            <div className="space-y-1">
+              {attendance.map(a => (
+                <div key={a.id} className="flex items-center justify-between px-2.5 py-1.5 bg-[#040810] rounded-sm border border-[#162448]/60">
+                  <div>
+                    <span className="text-[#dbeafe] text-xs">{a.marine_name}</span>
+                    <span className="text-[#1a2f55] text-[9px] font-mono ml-2">{a.rank}</span>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() => removeAttendance(a.personnel_id)}
+                      disabled={marking === a.personnel_id}
+                      className="text-[#2a4a80] hover:text-red-400 transition-colors"
+                      title="Remove"
+                    >
+                      {marking === a.personnel_id ? <Loader2 size={11} className="animate-spin" /> : <UserMinus size={11} />}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Mark attendance — admin only */}
+          {isAdmin && (
+            <div>
+              <div className="text-[#1a2f55] text-[9px] font-mono mb-1.5">MARK ATTENDANCE</div>
+              <input
+                className="input-field text-xs mb-2"
+                placeholder="Search marines..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              <div className="max-h-40 overflow-y-auto space-y-0.5">
+                {filteredPersonnel.map(p => {
+                  const attended = attendedIds.has(p.id);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between px-2.5 py-1 rounded-sm hover:bg-[#162448]/30 transition-colors">
+                      <span className="text-xs text-[#93c5fd]">{p.name} <span className="text-[#1a2f55] font-mono text-[9px]">{p.rank}</span></span>
+                      <button
+                        onClick={() => attended ? removeAttendance(p.id) : markAttendance(p.id)}
+                        disabled={marking === p.id}
+                        className={`flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-colors ${
+                          attended
+                            ? 'text-emerald-400 border-emerald-800/40 bg-emerald-950/20 hover:border-red-800/40 hover:text-red-400'
+                            : 'text-[#4a6fa5] border-[#162448] hover:border-[#3b82f6]/40 hover:text-[#60a5fa]'
+                        }`}
+                      >
+                        {marking === p.id
+                          ? <Loader2 size={9} className="animate-spin" />
+                          : attended ? <><UserCheck size={9} /> PRESENT</> : <><UserMinus size={9} /> ABSENT</>
+                        }
+                      </button>
+                    </div>
+                  );
+                })}
+                {filteredPersonnel.length === 0 && (
+                  <p className="text-[#1a2f55] text-[10px] font-mono text-center py-2">NO MARINES FOUND</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Operations() {
   const { isAdmin } = useAuth();
   const [ops, setOps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('All');
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -204,7 +355,7 @@ export default function Operations() {
       closeModal();
       fetchOps();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update operation');
+      alert(err.response?.data?.error || 'Failed to update');
     } finally { setSaving(false); }
   };
 
@@ -214,7 +365,7 @@ export default function Operations() {
       await api.delete(`/operations/${selected.id}`);
       closeModal();
       fetchOps();
-    } catch { alert('Failed to delete operation'); }
+    } catch { alert('Failed to delete'); }
     finally { setSaving(false); }
   };
 
@@ -223,19 +374,23 @@ export default function Operations() {
   };
 
   const filtered = ops.filter((op) => {
-    if (filter === 'All') return true;
-    return opStatus(op) === filter.toUpperCase();
+    const statusMatch = filter === 'All' || opStatus(op) === filter.toUpperCase();
+    const typeMatch = typeFilter === 'All' || (op.type || 'Operation') === typeFilter;
+    return statusMatch && typeMatch;
   });
 
   const active = ops.filter((op) => opStatus(op) === 'ACTIVE').length;
   const completed = ops.filter((op) => opStatus(op) === 'COMPLETED').length;
+  const opsCount = ops.filter(o => (o.type || 'Operation') === 'Operation').length;
+  const trainingsCount = ops.filter(o => o.type === 'Training').length;
 
   return (
     <div className="space-y-4 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex gap-1">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="space-y-2">
+          {/* Status filter */}
+          <div className="flex gap-1 flex-wrap">
             {['All', 'Active', 'Completed'].map((f) => (
               <button
                 key={f}
@@ -250,29 +405,48 @@ export default function Operations() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-[#1a2f55]">
-            <span>ACTIVE: <span className="text-[#4a6fa5]">{active}</span></span>
-            <span>COMPLETED: <span className="text-[#4a6fa5]">{completed}</span></span>
+          {/* Type filter */}
+          <div className="flex gap-1 flex-wrap">
+            {['All', 'Operation', 'Training'].map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`px-3 py-1.5 text-xs rounded-sm border transition-colors font-mono ${
+                  typeFilter === t
+                    ? 'bg-[#162448] text-[#dbeafe] border-[#3b82f6]/30'
+                    : 'text-[#1a2f55] border-[#162448]/60 hover:text-[#4a6fa5]'
+                }`}
+              >
+                {t === 'Operation' ? '⚔️ ' : t === 'Training' ? '🎯 ' : ''}{t}
+              </button>
+            ))}
+            <div className="flex items-center gap-3 ml-2 text-xs font-mono text-[#1a2f55]">
+              <span>ACTIVE <span className="text-[#4a6fa5]">{active}</span></span>
+              <span>DONE <span className="text-[#4a6fa5]">{completed}</span></span>
+              <span>OPS <span className="text-[#4a6fa5]">{opsCount}</span></span>
+              <span>TRN <span className="text-[#4a6fa5]">{trainingsCount}</span></span>
+            </div>
           </div>
         </div>
         {isAdmin && (
           <button onClick={() => setModal('create')} className="btn-primary flex items-center gap-2 shrink-0">
-            <Plus size={13} /> Create Operation
+            <Plus size={13} /> New Op / Training
           </button>
         )}
       </div>
 
-      {/* Operations list */}
+      {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="card py-16 text-center text-[#1a2f55] font-mono text-xs">NO OPERATIONS FOUND</div>
+        <div className="card py-16 text-center text-[#1a2f55] font-mono text-xs">NOTHING FOUND</div>
       ) : (
         <div className="space-y-3">
           {filtered.map((op) => {
             const status = opStatus(op);
+            const isTraining = op.type === 'Training';
             return (
               <div key={op.id} className="card p-4 group">
                 <div className="flex items-start gap-4">
@@ -285,7 +459,17 @@ export default function Operations() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap mb-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      {/* ID badge */}
+                      <span className="text-[#1a2f55] font-mono text-[9px] border border-[#162448] px-1.5 py-0.5 rounded-sm">#{op.id}</span>
+                      {/* Type badge */}
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm border ${
+                        isTraining
+                          ? 'text-amber-400/70 border-amber-900/40 bg-amber-950/20'
+                          : 'text-[#60a5fa]/70 border-[#162448] bg-[#162448]/40'
+                      }`}>
+                        {isTraining ? '🎯 TRAINING' : '⚔️ OPERATION'}
+                      </span>
                       <h3 className="text-[#dbeafe] font-medium text-sm">{op.title}</h3>
                       <span className={status === 'ACTIVE' ? 'badge-green' : 'badge-muted'}>{status}</span>
                     </div>
@@ -297,21 +481,21 @@ export default function Operations() {
                     <div className="flex items-center gap-4 text-xs font-mono text-[#1a2f55]">
                       <div className="flex items-center gap-1.5">
                         <Calendar size={10} />
-                        <span>Start: {format(parseISO(op.start_date), 'MMM dd, yyyy')}</span>
+                        <span>{format(parseISO(op.start_date), 'MMM dd, yyyy')}</span>
                       </div>
                       {op.end_date ? (
                         <div className="flex items-center gap-1.5">
                           <Calendar size={10} />
-                          <span>End: {format(parseISO(op.end_date), 'MMM dd, yyyy')}</span>
+                          <span>{format(parseISO(op.end_date), 'MMM dd, yyyy')}</span>
                         </div>
                       ) : (
                         <span className="text-[#3b82f6]/50">Ongoing</span>
                       )}
-                      <span className="text-[#1a2f55]">— {op.created_by_name}</span>
+                      <span>— {op.created_by_name}</span>
                     </div>
 
-                    {/* Image section */}
                     <OpImageSection op={op} onImageUpdate={handleImageUpdate} />
+                    <AttendancePanel op={op} />
                   </div>
 
                   {isAdmin && (
@@ -340,14 +524,20 @@ export default function Operations() {
       )}
 
       {modal === 'create' && (
-        <Modal title="Create Operation" onClose={closeModal} maxWidth="max-w-lg">
+        <Modal title="New Op / Training" onClose={closeModal} maxWidth="max-w-lg">
           <OpForm onSave={handleCreate} onCancel={closeModal} saving={saving} />
         </Modal>
       )}
       {modal === 'edit' && selected && (
         <Modal title={`Edit — ${selected.title}`} onClose={closeModal} maxWidth="max-w-lg">
           <OpForm
-            initial={{ title: selected.title, description: selected.description || '', start_date: selected.start_date, end_date: selected.end_date || '' }}
+            initial={{
+              title: selected.title,
+              description: selected.description || '',
+              start_date: selected.start_date,
+              end_date: selected.end_date || '',
+              type: selected.type || 'Operation',
+            }}
             onSave={handleEdit}
             onCancel={closeModal}
             saving={saving}
@@ -358,8 +548,7 @@ export default function Operations() {
         <Modal title="Confirm Deletion" onClose={closeModal} maxWidth="max-w-sm">
           <div className="space-y-4">
             <p className="text-[#93c5fd] text-sm">
-              Delete operation <span className="text-[#dbeafe] font-medium">{selected.title}</span>?
-              This action cannot be undone.
+              Delete <span className="text-[#dbeafe] font-medium">{selected.title}</span>? This cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={closeModal} className="btn-ghost">Cancel</button>
