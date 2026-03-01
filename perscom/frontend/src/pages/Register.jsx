@@ -36,8 +36,8 @@ export default function Register() {
     try {
       const res = await api.post('/auth/discord/register', { name: name.trim() });
       localStorage.setItem('perscom_user', JSON.stringify(res.data.user));
-      // Force a page reload to re-validate session
-      window.location.href = '/';
+      // Force a page reload to re-validate session (use BASE_URL so it works at /perscom/)
+      window.location.href = import.meta.env.BASE_URL;
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed. Try again.');
     } finally {
@@ -98,7 +98,7 @@ export default function Register() {
                 <span>{error}</span>
               </div>
               <a
-                href="/api/auth/discord"
+                href={`${import.meta.env.VITE_API_URL || '/api'}/auth/discord`}
                 className="btn-primary w-full inline-flex items-center justify-center gap-2 py-2.5"
               >
                 Try Again
