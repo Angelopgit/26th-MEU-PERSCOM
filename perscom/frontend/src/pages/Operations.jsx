@@ -7,8 +7,7 @@ import { format, isPast, parseISO } from 'date-fns';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
-
-const BACKEND = import.meta.env.BASE_URL.replace(/\/$/, '');
+import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
 
 function opStatus(op) {
   if (!op.end_date) return 'ACTIVE';

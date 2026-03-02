@@ -10,8 +10,7 @@ import {
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
-
-const BACKEND = import.meta.env.BASE_URL.replace(/\/$/, '');
+import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
 
 const ACTION_LABELS = {
   PERSONNEL_ADDED:      'Added',

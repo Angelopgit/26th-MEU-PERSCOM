@@ -9,10 +9,11 @@ import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
 
-const BACKEND = import.meta.env.BASE_URL.replace(/\/$/, '');
-// Railway backend URL for DOCX Office Online viewer (needs publicly reachable URL)
-const RAILWAY_ORIGIN = 'https://26th-meu-perscom-production.up.railway.app';
+// ASSET_BASE already resolves to the Railway origin in production,
+// so DOCX Office Online viewer gets the correct publicly reachable URL.
+const RAILWAY_ORIGIN = BACKEND;
 
 // ── Colour palette for rich text editor ──────────────────────────────────────
 const COLORS = [
@@ -287,6 +288,15 @@ function DocCard({ doc, isAdmin, onEdit, onDelete, onImagesChange, onFilesChange
           <div className="flex items-center gap-1 shrink-0">
             {isAdmin && (
               <>
+                {/* Attach PDF/DOCX — always visible in header, no need to expand first */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+                  disabled={uploadingFile}
+                  className="p-1.5 text-[#2a4a80] hover:text-[#60a5fa] transition-colors"
+                  title="Attach PDF / DOCX"
+                >
+                  {uploadingFile ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
+                </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onEdit(doc); }}
                   className="p-1.5 text-[#2a4a80] hover:text-[#dbeafe] transition-colors"
