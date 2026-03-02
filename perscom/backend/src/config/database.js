@@ -264,6 +264,24 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS document_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL,
+      file_url TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      file_type TEXT NOT NULL CHECK(file_type IN ('pdf','docx')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS spotlight_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      image_url TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Add columns to existing tables (idempotent — catches error if column exists)

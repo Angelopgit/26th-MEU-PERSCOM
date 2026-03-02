@@ -8,7 +8,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 
-const BACKEND = '';
+const BACKEND = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 function opStatus(op) {
   if (!op.end_date) return 'ACTIVE';

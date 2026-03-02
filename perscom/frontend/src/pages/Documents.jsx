@@ -2,12 +2,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FileText, Package, Clock, Plus, Edit2, Trash2, Loader2,
   Bold, Italic, X, ChevronDown, ChevronUp, AlertTriangle, Image,
+  FileDown, Maximize2,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+
+const BACKEND = import.meta.env.BASE_URL.replace(/\/$/, '');
+// Railway backend URL for DOCX Office Online viewer (needs publicly reachable URL)
+const RAILWAY_ORIGIN = 'https://26th-meu-perscom-production.up.railway.app';
 
 // ── Colour palette for rich text editor ──────────────────────────────────────
 const COLORS = [
@@ -26,7 +31,6 @@ function RichTextEditor({ value, onChange }) {
   const [showColors, setShowColors] = useState(false);
   const colorRef = useRef(null);
 
-  // Sync external value into editor (only on mount / external reset)
   const lastValueRef = useRef(value);
   useEffect(() => {
     if (editorRef.current && value !== lastValueRef.current) {
@@ -35,7 +39,6 @@ function RichTextEditor({ value, onChange }) {
     }
   }, [value]);
 
-  // Close color picker on outside click
   useEffect(() => {
     const handler = (e) => {
       if (colorRef.current && !colorRef.current.contains(e.target)) setShowColors(false);
@@ -88,7 +91,6 @@ function RichTextEditor({ value, onChange }) {
 
   return (
     <div className="border border-[#162448] rounded-sm overflow-hidden">
-      {/* Toolbar */}
       <div className="flex items-center gap-1 flex-wrap px-2 py-1.5 bg-[#060918] border-b border-[#162448]">
         <ToolBtn onMouseDown={() => exec('bold')} title="Bold"><Bold size={11} /></ToolBtn>
         <ToolBtn onMouseDown={() => exec('italic')} title="Italic"><Italic size={11} /></ToolBtn>
@@ -100,7 +102,6 @@ function RichTextEditor({ value, onChange }) {
         ))}
         <ToolBtn onMouseDown={() => exec('formatBlock', 'p')} title="Normal text">¶</ToolBtn>
         <div className="w-px h-4 bg-[#162448] mx-0.5" />
-        {/* Color picker */}
         <div className="relative" ref={colorRef}>
           <button
             type="button"
@@ -133,8 +134,6 @@ function RichTextEditor({ value, onChange }) {
           <X size={10} />
         </ToolBtn>
       </div>
-
-      {/* Editable area */}
       <div
         ref={editorRef}
         contentEditable
@@ -147,15 +146,51 @@ function RichTextEditor({ value, onChange }) {
   );
 }
 
+// ── Full-page file viewer modal ───────────────────────────────────────────────
+function FileViewer({ file, onClose }) {
+  const isPdf = file.file_type === 'pdf';
+  const src = isPdf
+    ? `${BACKEND}${file.file_url}`
+    : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(RAILWAY_ORIGIN + file.file_url)}`;
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#090f1e] border-b border-[#162448] shrink-0">
+        <div className="flex items-center gap-2">
+          <FileDown size={13} className="text-[#3b82f6]" />
+          <span className="text-[#60a5fa] text-xs font-mono uppercase tracking-widest truncate max-w-xs">
+            {file.file_name}
+          </span>
+        </div>
+        <button onClick={onClose} className="text-[#2a4a80] hover:text-[#dbeafe] transition-colors p-1">
+          <X size={15} />
+        </button>
+      </div>
+      <div className="flex-1 min-h-0">
+        <iframe
+          src={src}
+          className="w-full h-full border-0"
+          title={file.file_name}
+          allow="fullscreen"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Document card ─────────────────────────────────────────────────────────────
-function DocCard({ doc, isAdmin, onEdit, onDelete, onImagesChange }) {
+function DocCard({ doc, isAdmin, onEdit, onDelete, onImagesChange, onFilesChange }) {
   const [expanded, setExpanded] = useState(false);
   const [images, setImages] = useState(doc.images || []);
+  const [files, setFiles] = useState(doc.files || []);
   const [uploading, setUploading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [lightbox, setLightbox] = useState(null);
+  const [viewFile, setViewFile] = useState(null);
+  const imageRef = useRef(null);
   const fileRef = useRef(null);
 
-  const handleUpload = async (e) => {
+  const handleUploadImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
@@ -176,6 +211,27 @@ function DocCard({ doc, isAdmin, onEdit, onDelete, onImagesChange }) {
     }
   };
 
+  const handleUploadFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post(`/documents/${doc.id}/files`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const updated = [...files, res.data];
+      setFiles(updated);
+      onFilesChange?.(doc.id, updated);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to upload file');
+    } finally {
+      setUploadingFile(false);
+      e.target.value = '';
+    }
+  };
+
   const handleDeleteImage = async (imgId) => {
     try {
       await api.delete(`/documents/${doc.id}/images/${imgId}`);
@@ -187,110 +243,181 @@ function DocCard({ doc, isAdmin, onEdit, onDelete, onImagesChange }) {
     }
   };
 
+  const handleDeleteFile = async (fileId) => {
+    if (!confirm('Delete this file attachment?')) return;
+    try {
+      await api.delete(`/documents/${doc.id}/files/${fileId}`);
+      const updated = files.filter((f) => f.id !== fileId);
+      setFiles(updated);
+      onFilesChange?.(doc.id, updated);
+    } catch {
+      alert('Failed to delete file');
+    }
+  };
+
   return (
-    <div className="card overflow-hidden">
-      <div
-        className="flex items-start justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-[#0f1c35]/40 transition-colors"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <FileText size={12} className="text-[#3b82f6] shrink-0" />
-            <h3 className="text-[#dbeafe] text-sm font-medium truncate">{doc.title}</h3>
-            {images.length > 0 && (
-              <span className="text-[#1a2f55] text-[9px] font-mono flex items-center gap-1">
-                <Image size={8} /> {images.length}
-              </span>
-            )}
+    <>
+      <div className="card overflow-hidden">
+        <div
+          className="flex items-start justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-[#0f1c35]/40 transition-colors"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <FileText size={12} className="text-[#3b82f6] shrink-0" />
+              <h3 className="text-[#dbeafe] text-sm font-medium truncate">{doc.title}</h3>
+              {images.length > 0 && (
+                <span className="text-[#1a2f55] text-[9px] font-mono flex items-center gap-1">
+                  <Image size={8} /> {images.length}
+                </span>
+              )}
+              {files.length > 0 && (
+                <span className="text-[#1a2f55] text-[9px] font-mono flex items-center gap-1">
+                  <FileDown size={8} /> {files.length}
+                </span>
+              )}
+            </div>
+            <div className="text-[#1a2f55] text-[10px] font-mono mt-0.5">
+              {doc.author} · {format(parseISO(doc.created_at), 'MMM dd, yyyy')}
+              {doc.updated_at !== doc.created_at && (
+                <span className="ml-2 text-[#0f2040]">(edited)</span>
+              )}
+            </div>
           </div>
-          <div className="text-[#1a2f55] text-[10px] font-mono mt-0.5">
-            {doc.author} · {format(parseISO(doc.created_at), 'MMM dd, yyyy')}
-            {doc.updated_at !== doc.created_at && (
-              <span className="ml-2 text-[#0f2040]">(edited)</span>
+          <div className="flex items-center gap-1 shrink-0">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onEdit(doc); }}
+                  className="p-1.5 text-[#2a4a80] hover:text-[#dbeafe] transition-colors"
+                  title="Edit"
+                >
+                  <Edit2 size={12} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(doc); }}
+                  className="p-1.5 text-[#2a4a80] hover:text-red-400 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </>
             )}
+            {expanded ? <ChevronUp size={14} className="text-[#2a4a80]" /> : <ChevronDown size={14} className="text-[#2a4a80]" />}
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {isAdmin && (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); onEdit(doc); }}
-                className="p-1.5 text-[#2a4a80] hover:text-[#dbeafe] transition-colors"
-                title="Edit"
-              >
-                <Edit2 size={12} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(doc); }}
-                className="p-1.5 text-[#2a4a80] hover:text-red-400 transition-colors"
-                title="Delete"
-              >
-                <Trash2 size={12} />
-              </button>
-            </>
-          )}
-          {expanded ? <ChevronUp size={14} className="text-[#2a4a80]" /> : <ChevronDown size={14} className="text-[#2a4a80]" />}
-        </div>
+
+        {expanded && (
+          <div className="border-t border-[#162448]/50">
+            {doc.content && (
+              <div
+                className="px-4 pb-4 pt-3 text-sm text-[#93c5fd] leading-relaxed rich-content"
+                dangerouslySetInnerHTML={{ __html: doc.content }}
+              />
+            )}
+
+            {/* Attached files (PDF/DOCX) */}
+            {(files.length > 0 || isAdmin) && (
+              <div className={`px-4 pb-3 ${doc.content ? 'border-t border-[#162448]/30 pt-3' : 'pt-3'}`}>
+                {files.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    {files.map((f) => (
+                      <div key={f.id} className="flex items-center gap-2 group/file">
+                        <button
+                          onClick={() => setViewFile(f)}
+                          className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-[#dbeafe] transition-colors"
+                        >
+                          <div className={`shrink-0 text-[9px] font-mono px-1.5 py-0.5 rounded-sm border ${
+                            f.file_type === 'pdf'
+                              ? 'text-red-400 border-red-900/40 bg-red-950/20'
+                              : 'text-blue-400 border-blue-900/40 bg-blue-950/20'
+                          }`}>
+                            {f.file_type.toUpperCase()}
+                          </div>
+                          <Maximize2 size={10} className="text-[#2a4a80] shrink-0" />
+                          <span className="text-[#4a6fa5] text-xs truncate group-hover/file:text-[#dbeafe] transition-colors">
+                            {f.file_name}
+                          </span>
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteFile(f.id)}
+                            className="opacity-0 group-hover/file:opacity-100 p-1 text-[#2a4a80] hover:text-red-400 transition-all shrink-0"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploadingFile}
+                    className="flex items-center gap-1.5 text-[#1a2f55] hover:text-[#4a6fa5] text-[10px] font-mono transition-colors"
+                  >
+                    {uploadingFile ? <Loader2 size={10} className="animate-spin" /> : <FileDown size={10} />}
+                    {uploadingFile ? 'Uploading...' : 'Attach PDF / DOCX'}
+                  </button>
+                )}
+                <input ref={fileRef} type="file" accept=".pdf,.docx" className="hidden" onChange={handleUploadFile} />
+              </div>
+            )}
+
+            {/* Images section */}
+            {(images.length > 0 || isAdmin) && (
+              <div className="px-4 pb-4 border-t border-[#162448]/30 pt-3">
+                {images.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {images.map((img) => (
+                      <div key={img.id} className="relative group/img">
+                        <img
+                          src={`${BACKEND}${img.image_url}`}
+                          alt=""
+                          className="h-24 w-auto object-cover rounded-sm border border-[#162448] cursor-pointer hover:border-[#3b82f6]/40 transition-colors"
+                          onClick={() => setLightbox(`${BACKEND}${img.image_url}`)}
+                        />
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteImage(img.id)}
+                            className="absolute top-1 right-1 bg-[#06091a]/90 border border-red-900/50 rounded-sm p-0.5 text-red-400 opacity-0 group-hover/img:opacity-100 transition-opacity"
+                            title="Delete image"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => imageRef.current?.click()}
+                    disabled={uploading}
+                    className="flex items-center gap-1.5 text-[#1a2f55] hover:text-[#4a6fa5] text-[10px] font-mono transition-colors"
+                  >
+                    {uploading ? <Loader2 size={10} className="animate-spin" /> : <Image size={10} />}
+                    {uploading ? 'Uploading...' : 'Add Image'}
+                  </button>
+                )}
+                <input ref={imageRef} type="file" accept="image/*" className="hidden" onChange={handleUploadImage} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Image lightbox */}
+        {lightbox && (
+          <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-8" onClick={() => setLightbox(null)}>
+            <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-sm" />
+          </div>
+        )}
       </div>
 
-      {expanded && (
-        <div className="border-t border-[#162448]/50">
-          {doc.content && (
-            <div
-              className="px-4 pb-4 pt-3 text-sm text-[#93c5fd] leading-relaxed rich-content"
-              dangerouslySetInnerHTML={{ __html: doc.content }}
-            />
-          )}
-
-          {/* Images section */}
-          {(images.length > 0 || isAdmin) && (
-            <div className={`px-4 pb-4 ${doc.content ? 'border-t border-[#162448]/30 pt-3' : 'pt-3'}`}>
-              {images.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {images.map((img) => (
-                    <div key={img.id} className="relative group/img">
-                      <img
-                        src={img.image_url}
-                        alt=""
-                        className="h-24 w-auto object-cover rounded-sm border border-[#162448] cursor-pointer hover:border-[#3b82f6]/40 transition-colors"
-                        onClick={() => setLightbox(img.image_url)}
-                      />
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleDeleteImage(img.id)}
-                          className="absolute top-1 right-1 bg-[#06091a]/90 border border-red-900/50 rounded-sm p-0.5 text-red-400 opacity-0 group-hover/img:opacity-100 transition-opacity"
-                          title="Delete image"
-                        >
-                          <X size={10} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="flex items-center gap-1.5 text-[#1a2f55] hover:text-[#4a6fa5] text-[10px] font-mono transition-colors"
-                >
-                  {uploading ? <Loader2 size={10} className="animate-spin" /> : <Image size={10} />}
-                  {uploading ? 'Uploading...' : 'Add Image'}
-                </button>
-              )}
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Lightbox */}
-      {lightbox && (
-        <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-8" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-sm" />
-        </div>
-      )}
-    </div>
+      {/* File viewer */}
+      {viewFile && <FileViewer file={viewFile} onClose={() => setViewFile(null)} />}
+    </>
   );
 }
 
@@ -355,7 +482,6 @@ function LoadoutCard({ loadout, isAdmin, onDelete, onAddItem, onDeleteItem }) {
 
   return (
     <div className="card overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#162448] bg-[#060918]/60">
         <div>
           <div className="flex items-center gap-2">
@@ -377,7 +503,6 @@ function LoadoutCard({ loadout, isAdmin, onDelete, onAddItem, onDeleteItem }) {
         )}
       </div>
 
-      {/* Items */}
       <div className="divide-y divide-[#162448]/40">
         {loadout.items.length === 0 && (
           <div className="px-4 py-3 text-[#1a2f55] text-[10px] font-mono">NO ITEMS LISTED</div>
@@ -403,7 +528,6 @@ function LoadoutCard({ loadout, isAdmin, onDelete, onAddItem, onDeleteItem }) {
         ))}
       </div>
 
-      {/* Add item (admin only) */}
       {isAdmin && (
         <div className="border-t border-[#162448] px-4 py-2.5">
           {showAddItem ? (
@@ -467,15 +591,13 @@ export default function Documents() {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useState('documents');
 
-  // Documents state
   const [docs, setDocs]           = useState([]);
   const [docsLoading, setDocsLoading] = useState(true);
-  const [docModal, setDocModal]   = useState(null); // null | 'new' | doc-object
+  const [docModal, setDocModal]   = useState(null);
   const [docSaving, setDocSaving] = useState(false);
   const [deleteDoc, setDeleteDoc] = useState(null);
   const [deleting, setDeleting]   = useState(false);
 
-  // Gear loadouts state
   const [loadouts, setLoadouts]   = useState([]);
   const [loadoutsLoading, setLoadoutsLoading] = useState(true);
   const [showNewLoadout, setShowNewLoadout] = useState(false);
@@ -483,27 +605,19 @@ export default function Documents() {
   const [newLoadoutDesc, setNewLoadoutDesc] = useState('');
   const [loadoutSaving, setLoadoutSaving] = useState(false);
 
-  // LOA state
   const [loaList, setLoaList]     = useState([]);
   const [loaLoading, setLoaLoading] = useState(true);
 
-  // ── Fetch ───────────────────────────────────────────────────────────────────
   const fetchDocs = useCallback(async () => {
     setDocsLoading(true);
-    try {
-      const r = await api.get('/documents');
-      setDocs(r.data);
-    } catch {}
-    finally { setDocsLoading(false); }
+    try { const r = await api.get('/documents'); setDocs(r.data); }
+    catch {} finally { setDocsLoading(false); }
   }, []);
 
   const fetchLoadouts = useCallback(async () => {
     setLoadoutsLoading(true);
-    try {
-      const r = await api.get('/gear-loadouts');
-      setLoadouts(r.data);
-    } catch {}
-    finally { setLoadoutsLoading(false); }
+    try { const r = await api.get('/gear-loadouts'); setLoadouts(r.data); }
+    catch {} finally { setLoadoutsLoading(false); }
   }, []);
 
   const fetchLoa = useCallback(async () => {
@@ -511,15 +625,13 @@ export default function Documents() {
     try {
       const r = await api.get('/personnel');
       setLoaList(r.data.filter((p) => p.member_status === 'Leave of Absence'));
-    } catch {}
-    finally { setLoaLoading(false); }
+    } catch {} finally { setLoaLoading(false); }
   }, []);
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
   useEffect(() => { fetchLoadouts(); }, [fetchLoadouts]);
   useEffect(() => { fetchLoa(); }, [fetchLoa]);
 
-  // ── Document handlers ───────────────────────────────────────────────────────
   const handleSaveDoc = async ({ title, content }) => {
     setDocSaving(true);
     try {
@@ -545,7 +657,6 @@ export default function Documents() {
     finally { setDeleting(false); }
   };
 
-  // ── Loadout handlers ────────────────────────────────────────────────────────
   const handleAddLoadout = async (e) => {
     e.preventDefault();
     if (!newLoadoutName.trim()) return;
@@ -591,13 +702,11 @@ export default function Documents() {
 
   return (
     <div className="space-y-4 max-w-4xl">
-      {/* Header */}
       <div className="flex items-center gap-2">
         <FileText size={14} className="text-[#3b82f6]" />
         <span className="section-header text-sm">Unit Documents</span>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-0 border-b border-[#162448]">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
@@ -621,28 +730,21 @@ export default function Documents() {
         ))}
       </div>
 
-      {/* ── Documents tab ──────────────────────────────────────────────────── */}
       {tab === 'documents' && (
         <div className="space-y-3">
           {isAdmin && (
             <div className="flex justify-end">
-              <button
-                onClick={() => setDocModal('new')}
-                className="btn-primary flex items-center gap-2 text-sm"
-              >
+              <button onClick={() => setDocModal('new')} className="btn-primary flex items-center gap-2 text-sm">
                 <Plus size={13} /> New Document
               </button>
             </div>
           )}
-
           {docsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
             </div>
           ) : docs.length === 0 ? (
-            <div className="card py-12 text-center text-[#1a2f55] font-mono text-xs">
-              NO DOCUMENTS PUBLISHED
-            </div>
+            <div className="card py-12 text-center text-[#1a2f55] font-mono text-xs">NO DOCUMENTS PUBLISHED</div>
           ) : (
             docs.map((doc) => (
               <DocCard
@@ -654,27 +756,24 @@ export default function Documents() {
                 onImagesChange={(docId, imgs) =>
                   setDocs((prev) => prev.map((d) => d.id === docId ? { ...d, images: imgs } : d))
                 }
+                onFilesChange={(docId, fls) =>
+                  setDocs((prev) => prev.map((d) => d.id === docId ? { ...d, files: fls } : d))
+                }
               />
             ))
           )}
         </div>
       )}
 
-      {/* ── Gear Loadouts tab ──────────────────────────────────────────────── */}
       {tab === 'loadouts' && (
         <div className="space-y-3">
           {isAdmin && (
             <div className="flex justify-end">
-              <button
-                onClick={() => setShowNewLoadout(true)}
-                className="btn-primary flex items-center gap-2 text-sm"
-              >
+              <button onClick={() => setShowNewLoadout(true)} className="btn-primary flex items-center gap-2 text-sm">
                 <Plus size={13} /> New Loadout
               </button>
             </div>
           )}
-
-          {/* New loadout form */}
           {isAdmin && showNewLoadout && (
             <div className="card p-4">
               <form onSubmit={handleAddLoadout} className="space-y-3">
@@ -687,8 +786,7 @@ export default function Documents() {
                       placeholder="e.g. Rifleman (AT)"
                       value={newLoadoutName}
                       onChange={(e) => setNewLoadoutName(e.target.value)}
-                      required
-                      autoFocus
+                      required autoFocus
                     />
                   </div>
                   <div>
@@ -711,15 +809,12 @@ export default function Documents() {
               </form>
             </div>
           )}
-
           {loadoutsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
             </div>
           ) : loadouts.length === 0 ? (
-            <div className="card py-12 text-center text-[#1a2f55] font-mono text-xs">
-              NO GEAR LOADOUTS DEFINED
-            </div>
+            <div className="card py-12 text-center text-[#1a2f55] font-mono text-xs">NO GEAR LOADOUTS DEFINED</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {loadouts.map((l) => (
@@ -737,7 +832,6 @@ export default function Documents() {
         </div>
       )}
 
-      {/* ── Leave of Absence tab ───────────────────────────────────────────── */}
       {tab === 'loa' && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-mono text-[#1a2f55]">
@@ -745,7 +839,6 @@ export default function Documents() {
             <span>Marines currently on Leave of Absence</span>
             <span className="ml-auto text-[#4a6fa5]">{loaList.length} personnel</span>
           </div>
-
           {loaLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
@@ -790,7 +883,6 @@ export default function Documents() {
         </div>
       )}
 
-      {/* ── Document modals ─────────────────────────────────────────────────── */}
       {docModal && (
         <DocModal
           initial={docModal === 'new' ? null : docModal}

@@ -19,6 +19,7 @@ const documentsRoutes = require('./routes/documents');
 const gearLoadoutsRoutes = require('./routes/gear-loadouts');
 const usersRoutes = require('./routes/users');
 const attendanceRoutes = require('./routes/attendance');
+const spotlightRoutes = require('./routes/spotlight');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -53,6 +54,7 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/gear-loadouts', gearLoadoutsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/spotlight', spotlightRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ONLINE', system: 'PERSCOM v1.0', unit: '26th MEU (SOC)' });

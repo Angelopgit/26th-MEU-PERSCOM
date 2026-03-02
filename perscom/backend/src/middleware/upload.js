@@ -54,7 +54,42 @@ const documentUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
 });
 
+// PDF/DOCX document file upload — saves as docfile-<id>-<timestamp>.<ext>
+const docFileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `docfile-${req.params.id}-${Date.now()}${ext}`);
+  },
+});
+const docFileUpload = multer({
+  storage: docFileStorage,
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.docx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('Only PDF and DOCX files are allowed'), false);
+  },
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+});
+
+// Monthly spotlight image upload
+const spotlightStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `spotlight-${Date.now()}${ext}`);
+  },
+});
+const spotlightUpload = multer({
+  storage: spotlightStorage,
+  fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
+
 // Default export stays backwards-compatible; named exports as properties
 operationUpload.logoUpload = logoUpload;
 operationUpload.documentUpload = documentUpload;
+operationUpload.docFileUpload = docFileUpload;
+operationUpload.spotlightUpload = spotlightUpload;
 module.exports = operationUpload;

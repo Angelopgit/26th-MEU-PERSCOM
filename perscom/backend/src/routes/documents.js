@@ -18,6 +18,7 @@ function getDocWithImages(db, id) {
   `).get(id);
   if (!doc) return null;
   doc.images = db.prepare('SELECT id, image_url FROM document_images WHERE document_id = ? ORDER BY id ASC').all(id);
+  doc.files = db.prepare('SELECT id, file_url, file_name, file_type FROM document_files WHERE document_id = ? ORDER BY id ASC').all(id);
   return doc;
 }
 
@@ -30,9 +31,10 @@ router.get('/', authenticate, (req, res) => {
     LEFT JOIN users u ON u.id = d.created_by
     ORDER BY d.created_at DESC
   `).all();
-  // Attach images to each document
+  // Attach images and files to each document
   for (const row of rows) {
     row.images = db.prepare('SELECT id, image_url FROM document_images WHERE document_id = ? ORDER BY id ASC').all(row.id);
+    row.files = db.prepare('SELECT id, file_url, file_name, file_type FROM document_files WHERE document_id = ? ORDER BY id ASC').all(row.id);
   }
   res.json(rows);
 });
@@ -126,6 +128,38 @@ router.post('/:id/images', authenticate, requireAdmin, upload.documentUpload.sin
   ).run(req.params.id, imageUrl);
 
   res.status(201).json({ id: result.lastInsertRowid, image_url: imageUrl });
+});
+
+// POST /api/documents/:id/files — upload PDF or DOCX (admin only)
+router.post('/:id/files', authenticate, requireAdmin, upload.docFileUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+  const db = getDb();
+  const doc = db.prepare('SELECT id FROM documents WHERE id = ?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+  const ext = require('path').extname(req.file.originalname).toLowerCase().replace('.', '');
+  const fileUrl = `/uploads/${req.file.filename}`;
+  const result = db.prepare(
+    'INSERT INTO document_files (document_id, file_url, file_name, file_type) VALUES (?, ?, ?, ?)'
+  ).run(req.params.id, fileUrl, req.file.originalname, ext);
+
+  res.status(201).json({ id: result.lastInsertRowid, file_url: fileUrl, file_name: req.file.originalname, file_type: ext });
+});
+
+// DELETE /api/documents/:id/files/:fileId — delete uploaded file (admin only)
+router.delete('/:id/files/:fileId', authenticate, requireAdmin, (req, res) => {
+  const db = getDb();
+  const file = db.prepare(
+    'SELECT * FROM document_files WHERE id = ? AND document_id = ?'
+  ).get(req.params.fileId, req.params.id);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  const filePath = require('path').join(UPLOAD_DIR, require('path').basename(file.file_url));
+  if (require('fs').existsSync(filePath)) require('fs').unlinkSync(filePath);
+
+  db.prepare('DELETE FROM document_files WHERE id = ?').run(req.params.fileId);
+  res.json({ success: true });
 });
 
 // DELETE /api/documents/:id/images/:imageId — delete image (admin only)

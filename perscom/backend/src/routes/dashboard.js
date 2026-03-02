@@ -46,6 +46,28 @@ router.get('/stats', authenticate, (req, res) => {
     LIMIT 1
   `).get();
 
+  // Next upcoming operation or training
+  const nextOp = db.prepare(`
+    SELECT id, title, type, start_date, image_url
+    FROM operations
+    WHERE date(start_date) >= date('now')
+    ORDER BY start_date ASC
+    LIMIT 1
+  `).get() || null;
+
+  // Personnel growth — cumulative count by registration date
+  const growthRows = db.prepare(`
+    SELECT DATE(created_at) as date, COUNT(*) as count
+    FROM personnel
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  `).all();
+  let cumulative = 0;
+  const personnelGrowth = growthRows.map(r => {
+    cumulative += r.count;
+    return { date: r.date, total: cumulative };
+  });
+
   res.json({
     totalPersonnel,
     marines,
@@ -54,6 +76,8 @@ router.get('/stats', authenticate, (req, res) => {
     activeOps,
     recentActivity,
     latestAnnouncement: latestAnnouncement || null,
+    nextOp,
+    personnelGrowth,
   });
 });
 

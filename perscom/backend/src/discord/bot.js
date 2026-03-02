@@ -38,6 +38,8 @@ async function startBot() {
     require('./commands/status'),
     require('./commands/attendance'),
     require('./commands/gear'),
+    require('./commands/evaluate'),
+    require('./commands/deactivate'),
   ];
 
   for (const cmd of commands) {
@@ -131,6 +133,28 @@ async function startBot() {
       }
     } catch (err) {
       console.error('[BOT] GuildMemberUpdate error:', err.message);
+    }
+  });
+
+  // ── Auto-inactivate when a member leaves the server ───────────────────────
+  client.on('guildMemberRemove', async (member) => {
+    try {
+      const db = getDb();
+      const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(member.user.id);
+      if (!user?.personnel_id) return;
+      const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(user.personnel_id);
+      if (!person || person.member_status === 'Inactive') return;
+      db.prepare(
+        "UPDATE personnel SET member_status = 'Inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(user.personnel_id);
+      logActivity(
+        'MEMBER_REMOVED',
+        `${person.name} left the Discord server — automatically marked Inactive`,
+        null
+      );
+      console.log(`[BOT] ${person.name} left server — marked Inactive`);
+    } catch (err) {
+      console.error('[BOT] guildMemberRemove error:', err.message);
     }
   });
 
