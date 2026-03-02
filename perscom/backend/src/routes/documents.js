@@ -4,6 +4,7 @@ const fs = require('fs');
 const { getDb } = require('../config/database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { logActivity } = require('../utils/logActivity');
 
 const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '../../data/uploads');
@@ -49,16 +50,19 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   const { title, content } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
-  const db = getDb();
-  const result = db.prepare(
-    'INSERT INTO documents (title, content, created_by) VALUES (?, ?, ?)'
-  ).run(title.trim(), content || '', req.user.id);
+  try {
+    const db = getDb();
+    const result = db.prepare(
+      'INSERT INTO documents (title, content, created_by) VALUES (?, ?, ?)'
+    ).run(title.trim(), content || '', req.user.id);
 
-  db.prepare(
-    "INSERT INTO activity_log (action, details, user_id) VALUES ('DOCUMENT_CREATED', ?, ?)"
-  ).run(`Document created: "${title.trim()}"`, req.user.id);
+    logActivity('DOCUMENT_CREATED', `Document created: "${title.trim()}"`, req.user.id);
 
-  res.status(201).json(getDocWithImages(db, result.lastInsertRowid));
+    res.status(201).json(getDocWithImages(db, result.lastInsertRowid));
+  } catch (err) {
+    console.error('[DOCUMENTS] POST error:', err.message);
+    res.status(500).json({ error: 'Failed to create document' });
+  }
 });
 
 // PUT /api/documents/:id — admin only
@@ -66,40 +70,46 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   const { title, content } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
-  const db = getDb();
-  const existing = db.prepare('SELECT id FROM documents WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Document not found' });
+  try {
+    const db = getDb();
+    const existing = db.prepare('SELECT id FROM documents WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Document not found' });
 
-  db.prepare(
-    'UPDATE documents SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-  ).run(title.trim(), content || '', req.params.id);
+    db.prepare(
+      'UPDATE documents SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(title.trim(), content || '', req.params.id);
 
-  db.prepare(
-    "INSERT INTO activity_log (action, details, user_id) VALUES ('DOCUMENT_UPDATED', ?, ?)"
-  ).run(`Document updated: "${title.trim()}"`, req.user.id);
+    logActivity('DOCUMENT_UPDATED', `Document updated: "${title.trim()}"`, req.user.id);
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[DOCUMENTS] PUT error:', err.message);
+    res.status(500).json({ error: 'Failed to update document' });
+  }
 });
 
 // DELETE /api/documents/:id — admin only
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
-  const db = getDb();
-  const doc = db.prepare('SELECT title FROM documents WHERE id = ?').get(req.params.id);
-  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  try {
+    const db = getDb();
+    const doc = db.prepare('SELECT title FROM documents WHERE id = ?').get(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-  // Clean up any associated image files
-  const images = db.prepare('SELECT image_url FROM document_images WHERE document_id = ?').all(req.params.id);
-  for (const img of images) {
-    const filePath = path.join(UPLOAD_DIR, path.basename(img.image_url));
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    // Clean up any associated image files
+    const images = db.prepare('SELECT image_url FROM document_images WHERE document_id = ?').all(req.params.id);
+    for (const img of images) {
+      const filePath = path.join(UPLOAD_DIR, path.basename(img.image_url));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+
+    db.prepare('DELETE FROM documents WHERE id = ?').run(req.params.id);
+    logActivity('DOCUMENT_DELETED', `Document deleted: "${doc.title}"`, req.user.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[DOCUMENTS] DELETE error:', err.message);
+    res.status(500).json({ error: 'Failed to delete document' });
   }
-
-  db.prepare('DELETE FROM documents WHERE id = ?').run(req.params.id);
-  db.prepare(
-    "INSERT INTO activity_log (action, details, user_id) VALUES ('DOCUMENT_DELETED', ?, ?)"
-  ).run(`Document deleted: "${doc.title}"`, req.user.id);
-
-  res.json({ success: true });
 });
 
 // POST /api/documents/:id/images — upload image (admin only)
