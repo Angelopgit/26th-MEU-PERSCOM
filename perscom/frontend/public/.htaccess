@@ -2,13 +2,12 @@ Options -MultiViews
 RewriteEngine On
 RewriteBase /perscom/
 
-# ── Optional: proxy /api/* and /uploads/* to the Node.js backend ─────────────
-# Uncomment these if your host has mod_proxy enabled AND the backend runs on
-# the same server (e.g. cPanel Node.js App on port 3001).
-# If the backend is on a separate host, set VITE_API_URL in .env.production instead.
-#
-# RewriteRule ^api/(.*)$     http://localhost:3001/api/$1     [P,L]
-# RewriteRule ^uploads/(.*)$ http://localhost:3001/uploads/$1 [P,L]
+# ── Proxy /api/* and /uploads/* to the Railway backend ───────────────────────
+# This makes all API requests same-origin (26thmeu.org) so cookies work in
+# Firefox and Brave (which block cross-domain cookies). Requires mod_proxy.
+# Replace YOUR-RAILWAY-APP with your actual Railway app URL.
+RewriteRule ^api/(.*)$     https://26th-meu-perscom-production.up.railway.app/api/$1     [P,L]
+RewriteRule ^uploads/(.*)$ https://26th-meu-perscom-production.up.railway.app/uploads/$1 [P,L]
 
 # ── React Router client-side routing ─────────────────────────────────────────
 # Serve existing files and directories directly; everything else → index.html

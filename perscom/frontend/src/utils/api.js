@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-// In production, VITE_API_URL points to the backend server (e.g. https://api.26thmeu.org/api)
+// In production without VITE_API_URL, fall back to same-domain /perscom/api so
+// the .htaccess proxy can route it to Railway — keeps cookies same-origin for Firefox.
 // In development, the Vite proxy handles /api → localhost:3001
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`,
   timeout: 15000,
   withCredentials: true,
 });
