@@ -3,20 +3,35 @@ const { getDb } = require('../config/database');
 
 /**
  * Auto-match a PERSCOM rank name to a Discord role in the guild.
- * Matches by exact name or close containment (case-insensitive).
+ * Priority: exact → role-contains-rank (shortest) → rank-contains-role (longest).
+ * The priority order prevents "Private" from stealing the match for "Private First Class"
+ * when the Discord role is named "E2 Private First Class".
  */
 async function findRoleByRankName(guild, rankName) {
   if (!rankName) return null;
   const roles = guild.roles.cache;
   const lower = rankName.toLowerCase();
 
-  // Exact match first
-  let match = roles.find(r => r.name.toLowerCase() === lower);
-  if (match) return match;
+  // 1. Exact name match
+  const exact = roles.find(r => r.name.toLowerCase() === lower);
+  if (exact) return exact;
 
-  // Try containment match (e.g., Discord role "Private First Class" matches rank "Private First Class")
-  match = roles.find(r => r.name.toLowerCase().includes(lower) || lower.includes(r.name.toLowerCase()));
-  return match || null;
+  // 2. Discord role name contains the rank name — pick shortest (most specific)
+  //    e.g. "E2 Private First Class" contains "Private First Class" ✓
+  //    Avoids "E2 Private First Class" stealing the match for "Private" (it would
+  //    also contain "private" but we pick the shortest, which is "Private" itself)
+  const containsRank = roles.filter(r => r.name.toLowerCase().includes(lower));
+  if (containsRank.size > 0) {
+    return containsRank.reduce((best, r) => r.name.length < best.name.length ? r : best);
+  }
+
+  // 3. Rank name contains the role name — pick longest role (most specific reverse match)
+  const rankContains = roles.filter(r => lower.includes(r.name.toLowerCase()) && r.name.length > 2);
+  if (rankContains.size > 0) {
+    return rankContains.reduce((best, r) => r.name.length > best.name.length ? r : best);
+  }
+
+  return null;
 }
 
 /**
