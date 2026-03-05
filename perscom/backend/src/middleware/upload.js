@@ -87,9 +87,24 @@ const spotlightUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
+// Rank icon upload — saves as rank-icon-<id>-<timestamp>.<ext>
+const rankIconStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `rank-icon-${req.params.id}-${Date.now()}${ext}`);
+  },
+});
+const rankIconUpload = multer({
+  storage: rankIconStorage,
+  fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+});
+
 // Default export stays backwards-compatible; named exports as properties
 operationUpload.logoUpload = logoUpload;
 operationUpload.documentUpload = documentUpload;
 operationUpload.docFileUpload = docFileUpload;
 operationUpload.spotlightUpload = spotlightUpload;
+operationUpload.rankIconUpload = rankIconUpload;
 module.exports = operationUpload;

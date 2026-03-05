@@ -46,6 +46,21 @@ router.delete('/logo', authenticate, requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// GET /api/settings/rank-progression — returns enabled status (any authenticated user)
+router.get('/rank-progression', authenticate, (req, res) => {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'rank_progression_enabled'").get();
+  res.json({ enabled: row?.value === 'true' });
+});
+
+// PATCH /api/settings/rank-progression — toggle (admin only)
+router.patch('/rank-progression', authenticate, requireAdmin, (req, res) => {
+  const { enabled } = req.body;
+  const db = getDb();
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('rank_progression_enabled', ?)").run(enabled ? 'true' : 'false');
+  res.json({ enabled: !!enabled });
+});
+
 // POST /api/settings/sync-roles — admin only, trigger full Discord role sync
 router.post('/sync-roles', authenticate, requireAdmin, async (req, res) => {
   try {

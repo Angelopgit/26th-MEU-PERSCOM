@@ -282,6 +282,17 @@ function initializeDatabase() {
       created_by INTEGER REFERENCES users(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS ranks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      icon_url TEXT,
+      req_attendance INTEGER NOT NULL DEFAULT 0,
+      req_ops INTEGER NOT NULL DEFAULT 0,
+      req_trainings INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Add columns to existing tables (idempotent — catches error if column exists)
@@ -406,6 +417,32 @@ function initializeDatabase() {
       .run(uResult.lastInsertRowid, pResult.lastInsertRowid);
 
     console.log('[PERSCOM] Fallback admin "gunny" seeded');
+  }
+
+  // Seed default ranks if table is empty
+  const rankCount = database.prepare('SELECT COUNT(*) as cnt FROM ranks').get();
+  if (rankCount.cnt === 0) {
+    const insertRank = database.prepare(
+      'INSERT INTO ranks (name, sort_order, req_attendance, req_ops, req_trainings) VALUES (?, ?, ?, ?, ?)'
+    );
+    const defaultRanks = [
+      ['Recruit',            0,  0,  0,  0],
+      ['Private',            1,  1,  0,  1],
+      ['Private First Class',2,  3,  1,  2],
+      ['Lance Corporal',     3,  5,  2,  3],
+      ['Corporal',           4, 10,  4,  5],
+      ['Sergeant',           5, 15,  6,  8],
+      ['Staff Sergeant',     6, 25, 10, 12],
+      ['Gunnery Sergeant',   7, 35, 15, 18],
+    ];
+    for (const r of defaultRanks) insertRank.run(...r);
+    console.log('[PERSCOM] Default ranks seeded');
+  }
+
+  // Seed rank_progression_enabled setting if not present
+  const rpSetting = database.prepare("SELECT value FROM settings WHERE key = 'rank_progression_enabled'").get();
+  if (!rpSetting) {
+    database.prepare("INSERT INTO settings (key, value) VALUES ('rank_progression_enabled', 'false')").run();
   }
 
   console.log('[PERSCOM] Database initialized');

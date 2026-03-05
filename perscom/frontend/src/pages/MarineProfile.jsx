@@ -3,12 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Star, Shield, Clock, Calendar, Award,
   CheckSquare, Loader2, Plus, X, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Target,
+  CheckCircle2, AlertTriangle, Target, TrendingUp,
 } from 'lucide-react';
 import { differenceInDays, format, formatDistanceToNow } from 'date-fns';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
+import { imgUrl } from '../utils/imgUrl';
 
 const RANK_ABBREV = {
   'Recruit': 'Rct', 'Private': 'Pvt', 'Private First Class': 'PFC',
@@ -40,7 +41,7 @@ function calcDuration(from) {
 function MetricCard({ label, value, icon: Icon, color = 'text-[#dbeafe]' }) {
   return (
     <div className="card p-4 text-center">
-      <div className={`flex items-center justify-center mb-2`}>
+      <div className="flex items-center justify-center mb-2">
         {Icon && <Icon size={14} className="text-[#4a6fa5]" />}
       </div>
       <div className={`text-2xl font-mono font-bold ${color}`}>{value}</div>
@@ -49,6 +50,147 @@ function MetricCard({ label, value, icon: Icon, color = 'text-[#dbeafe]' }) {
   );
 }
 
+// ── Eligibility metric cell ───────────────────────────────────────────────────
+function EligMetric({ label, current, required, met }) {
+  if (required === 0) {
+    return (
+      <div className="text-center">
+        <div className="text-[#1a2f55] text-[9px] font-mono">{label}</div>
+        <div className="text-[#4a6fa5] text-xs font-mono">—</div>
+      </div>
+    );
+  }
+  return (
+    <div className="text-center">
+      <div className="text-[#1a2f55] text-[9px] font-mono">{label}</div>
+      <div className={`text-xs font-mono font-bold ${met ? 'text-[#60a5fa]' : 'text-amber-400'}`}>
+        {current}/{required}{met ? ' ✓' : ''}
+      </div>
+    </div>
+  );
+}
+
+// ── Rank Progression Bar ──────────────────────────────────────────────────────
+function RankProgressionBar({ person, ranks, attendance }) {
+  const sorted = [...ranks].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+  const curIdx = sorted.findIndex((r) => r.name === person.rank);
+  if (curIdx === -1) return null;
+
+  const currentRank = sorted[curIdx];
+  const nextRank    = sorted[curIdx + 1] || null;
+
+  if (!nextRank) {
+    return (
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#162448]">
+          <TrendingUp size={13} className="text-[#3b82f6]" />
+          <span className="section-header">Rank Progression</span>
+          <span className="ml-auto badge-green text-[9px]">MAX RANK ACHIEVED</span>
+        </div>
+        <div className="px-4 py-3 flex items-center gap-3">
+          {currentRank.icon_url ? (
+            <img src={imgUrl(currentRank.icon_url)} alt="" className="w-8 h-8 object-contain" />
+          ) : (
+            <Shield size={18} className="text-[#3b82f6]" />
+          )}
+          <span className="text-[#60a5fa] text-sm font-medium">{currentRank.name}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const ops      = attendance?.ops      || 0;
+  const trainings = attendance?.trainings || 0;
+  const total    = attendance?.total    || 0;
+
+  const opsEligible      = nextRank.req_ops       === 0 || ops      >= nextRank.req_ops;
+  const trainingsEligible = nextRank.req_trainings === 0 || trainings >= nextRank.req_trainings;
+  const attendanceEligible = nextRank.req_attendance === 0 || total >= nextRank.req_attendance;
+  const eligible = opsEligible && trainingsEligible && attendanceEligible;
+
+  // Progress = min ratio across all non-zero requirements
+  const ratios = [];
+  if (nextRank.req_ops       > 0) ratios.push(ops       / nextRank.req_ops);
+  if (nextRank.req_trainings > 0) ratios.push(trainings / nextRank.req_trainings);
+  if (nextRank.req_attendance > 0) ratios.push(total    / nextRank.req_attendance);
+  const progressPct = ratios.length > 0 ? Math.round(Math.min(...ratios) * 100) : 100;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#162448]">
+        <TrendingUp size={13} className="text-[#3b82f6]" />
+        <span className="section-header">Rank Progression</span>
+        {eligible && (
+          <span className="ml-auto badge-green text-[9px]">ELIGIBLE FOR PROMOTION</span>
+        )}
+      </div>
+
+      <div className="p-4 space-y-3">
+        {/* Current → bar → Next */}
+        <div className="flex items-center gap-3">
+          {/* Current rank */}
+          <div className="flex flex-col items-center gap-1 shrink-0 w-14 text-center">
+            {currentRank.icon_url ? (
+              <img src={imgUrl(currentRank.icon_url)} alt="" className="w-9 h-9 object-contain mx-auto" />
+            ) : (
+              <Shield size={18} className="text-[#3b82f6] mx-auto" />
+            )}
+            <span className="text-[#4a6fa5] text-[9px] font-mono leading-tight">
+              {RANK_ABBREV[currentRank.name] || currentRank.name}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="flex-1">
+            <div className="h-2.5 bg-[#0c1428] rounded-full border border-[#162448] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${Math.min(progressPct, 100)}%`,
+                  background: eligible
+                    ? 'linear-gradient(to right, #16a34a, #22c55e)'
+                    : 'linear-gradient(to right, #1d4ed8, #3b82f6)',
+                  boxShadow: eligible
+                    ? '0 0 6px rgba(34,197,94,0.5)'
+                    : '0 0 6px rgba(59,130,246,0.5)',
+                }}
+              />
+            </div>
+            <div className="text-center text-[#4a6fa5] text-[9px] font-mono mt-1">
+              {Math.min(progressPct, 100)}%
+            </div>
+          </div>
+
+          {/* Next rank */}
+          <div className="flex flex-col items-center gap-1 shrink-0 w-14 text-center">
+            {nextRank.icon_url ? (
+              <img src={imgUrl(nextRank.icon_url)} alt="" className="w-9 h-9 object-contain mx-auto opacity-50" />
+            ) : (
+              <Shield size={18} className="text-[#2a4a80] mx-auto" />
+            )}
+            <span className="text-[#2a4a80] text-[9px] font-mono leading-tight">
+              {RANK_ABBREV[nextRank.name] || nextRank.name}
+            </span>
+          </div>
+        </div>
+
+        {/* Eligibility threshold */}
+        <div>
+          <div className="text-[#1a2f55] text-[9px] font-mono tracking-widest mb-2">
+            ELIGIBILITY THRESHOLD
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <EligMetric label="Operations"  current={ops}      required={nextRank.req_ops}        met={opsEligible} />
+            <EligMetric label="Trainings"   current={trainings} required={nextRank.req_trainings}  met={trainingsEligible} />
+            <EligMetric label="Attendance"  current={total}    required={nextRank.req_attendance} met={attendanceEligible} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Qualification Modal ───────────────────────────────────────────────────
 function AddQualModal({ person, onClose, onAdded }) {
   const [form, setForm] = useState({ name: '', awarded_at: new Date().toISOString().split('T')[0] });
   const [saving, setSaving] = useState(false);
@@ -100,16 +242,19 @@ function AddQualModal({ person, onClose, onAdded }) {
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function MarineProfile() {
   const { id } = useParams();
   const { isAdmin, canEdit } = useAuth();
-  const [person, setPerson] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showAddQual, setShowAddQual] = useState(false);
+  const [person, setPerson]             = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [showAddQual, setShowAddQual]   = useState(false);
   const [evalsExpanded, setEvalsExpanded] = useState(false);
   const [removingQual, setRemovingQual] = useState(null);
   const [discordRoles, setDiscordRoles] = useState([]);
-  const [attendance, setAttendance] = useState(null);
+  const [attendance, setAttendance]     = useState(null);
+  const [ranks, setRanks]               = useState([]);
+  const [rankProgressionEnabled, setRankProgressionEnabled] = useState(false);
 
   const fetchPerson = useCallback(async () => {
     setLoading(true);
@@ -140,6 +285,18 @@ export default function MarineProfile() {
       .then((res) => setAttendance(res.data))
       .catch(() => setAttendance(null));
   }, [id, person]);
+
+  // Fetch ranks + progression setting
+  useEffect(() => {
+    if (!person) return;
+    Promise.all([
+      api.get('/ranks'),
+      api.get('/settings/rank-progression'),
+    ]).then(([ranksRes, rpRes]) => {
+      setRanks(ranksRes.data);
+      setRankProgressionEnabled(rpRes.data.enabled);
+    }).catch(() => {});
+  }, [person]);
 
   const handleRemoveQual = async (qualId) => {
     setRemovingQual(qualId);
@@ -185,6 +342,9 @@ export default function MarineProfile() {
     ? `https://cdn.discordapp.com/avatars/${person.discord.discord_id}/${person.discord.discord_avatar}.png?size=128`
     : null;
 
+  // Find rank icon for this marine's current rank
+  const currentRankData = ranks.find((r) => r.name === person.rank);
+
   return (
     <div className="max-w-4xl space-y-5">
       {/* Back nav */}
@@ -215,6 +375,15 @@ export default function MarineProfile() {
               )}
               {person.status === 'Civilian' && (
                 <span className="badge-muted">CIV</span>
+              )}
+              {/* Rank icon badge */}
+              {currentRankData?.icon_url && (
+                <img
+                  src={imgUrl(currentRankData.icon_url)}
+                  alt={currentRankData.name}
+                  className="w-6 h-6 object-contain"
+                  title={currentRankData.name}
+                />
               )}
             </div>
             {person.status === 'Marine' && person.rank && (
@@ -261,10 +430,7 @@ export default function MarineProfile() {
                           background: `${role.color}12`,
                         }}
                       >
-                        <span
-                          className="w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{ background: role.color }}
-                        />
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: role.color }} />
                         {role.name}
                       </span>
                     ))}
@@ -288,7 +454,7 @@ export default function MarineProfile() {
         <MetricCard label="Date Registered" value={person.date_of_entry} icon={Calendar} color="text-[#dbeafe]" />
         <MetricCard
           label="Evals"
-          value={person.evaluations?.length > 0 ? person.evaluations.length : 0}
+          value={person.evaluations?.length ?? 0}
           icon={CheckSquare}
           color="text-[#4a6fa5]"
         />
@@ -305,6 +471,11 @@ export default function MarineProfile() {
           color="text-amber-400"
         />
       </div>
+
+      {/* Rank Progression Bar (Marines only, when feature is enabled) */}
+      {rankProgressionEnabled && person.status === 'Marine' && ranks.length > 0 && (
+        <RankProgressionBar person={person} ranks={ranks} attendance={attendance} />
+      )}
 
       {/* Awards + Qualifications row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -344,7 +515,6 @@ export default function MarineProfile() {
             <span className="ml-auto text-[#1a2f55] text-xs font-mono">
               {person.qualifications?.length || 0}
             </span>
-            {/* Staff can add quals */}
             {canEdit && (
               <button
                 onClick={() => setShowAddQual(true)}
