@@ -42,9 +42,9 @@ router.post('/login', (req, res) => {
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-  // Token goes into httpOnly cookie only — never in the response body
+  // Cookie for same-origin browsers; token in body for Firefox/Safari cross-origin
   res.cookie('perscom_token', token, cookieOpts(7 * 24 * 60 * 60 * 1000));
-  res.json({ user: payload });
+  res.json({ user: payload, token });
 });
 
 // Guest access — limited read-only session
@@ -52,7 +52,7 @@ router.post('/guest', (req, res) => {
   const guestPayload = { id: 0, username: 'guest', role: 'guest', display_name: 'Guest' };
   const token = jwt.sign(guestPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
   res.cookie('perscom_token', token, cookieOpts(8 * 60 * 60 * 1000));
-  res.json({ user: guestPayload });
+  res.json({ user: guestPayload, token });
 });
 
 // Logout — clears the httpOnly cookie server-side

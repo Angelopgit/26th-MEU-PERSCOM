@@ -9,8 +9,32 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// sessionStorage key for Bearer token (Firefox/Safari cross-origin fallback)
+const TOKEN_KEY = 'perscom_tok';
+
+export function storeToken(t) {
+  if (t) sessionStorage.setItem(TOKEN_KEY, t);
+}
+
+export function clearToken() {
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
+// Attach stored Bearer token to every request when available.
+// Browsers that accept httpOnly cookies (Chrome, Edge) will use the cookie instead —
+// the Authorization header is a no-op when the cookie is already present.
+api.interceptors.request.use((config) => {
+  const tok = sessionStorage.getItem(TOKEN_KEY);
+  if (tok) config.headers['Authorization'] = `Bearer ${tok}`;
+  return config;
+});
+
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // If the server included a (fresh) token in the response body, persist it.
+    if (res.data?.token) storeToken(res.data.token);
+    return res;
+  },
   (err) => {
     if (err.response?.status === 401) {
       // Don't redirect on session-check or silent-refresh calls — AuthContext handles
@@ -23,6 +47,7 @@ api.interceptors.response.use(
         localStorage.removeItem('perscom_user');
         localStorage.removeItem('perscom_guest');
         sessionStorage.removeItem('perscom_alias');
+        clearToken();
         window.location.href = import.meta.env.BASE_URL + 'login';
       }
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { storeToken } from '../utils/api';
 import { AlertCircle, Loader2, Eye, User } from 'lucide-react';
 import Modal from '../components/Modal';
 
@@ -59,8 +60,18 @@ export default function Login() {
     if (isGuest) logout();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check for Discord OAuth errors in URL params
+  // Handle Discord OAuth callback for returning users (?t=<token>)
+  // The backend passes the JWT in the URL so Firefox/Safari users aren't blocked
+  // by cross-origin cookie restrictions.
   useEffect(() => {
+    const t = searchParams.get('t');
+    if (t) {
+      storeToken(t);
+      // Trigger a full page reload so AuthContext re-runs /auth/me with the new token
+      window.location.replace(import.meta.env.BASE_URL || '/');
+      return;
+    }
+
     const errCode = searchParams.get('error');
     if (errCode && DISCORD_ERRORS[errCode]) {
       setError(DISCORD_ERRORS[errCode]);

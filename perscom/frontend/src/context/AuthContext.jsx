@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../utils/api';
+import api, { clearToken } from '../utils/api';
 import { imgUrl } from '../utils/imgUrl';
 
 const AuthContext = createContext(null);
@@ -96,6 +96,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('perscom_user');
     localStorage.removeItem('perscom_guest');
     sessionStorage.removeItem('perscom_alias');
+    clearToken();
     setUser(null);
     setAdminAlias(null);
   }, []);

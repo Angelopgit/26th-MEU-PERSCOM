@@ -108,7 +108,10 @@ const cookieOpts = (maxAgeMs) => ({
 // Discord refresh_token to verify the user is still active and issue a fresh JWT.
 // This keeps returning users logged in without hammering Discord's auth-code rate limit.
 router.post('/refresh', async (req, res) => {
-  const token = req.cookies?.perscom_token;
+  // Accept cookie (same-origin) OR Authorization: Bearer header (Firefox/Safari cross-origin)
+  const bearerHeader = req.headers.authorization;
+  const bearerToken = bearerHeader?.startsWith('Bearer ') ? bearerHeader.slice(7) : null;
+  const token = req.cookies?.perscom_token || bearerToken;
   if (!token) return res.status(401).json({ error: 'No session' });
 
   let decoded;
@@ -125,7 +128,7 @@ router.post('/refresh', async (req, res) => {
     const { iat, exp, ...payload } = decoded;
     const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.cookie('perscom_token', newToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
-    return res.json({ user: payload });
+    return res.json({ user: payload, token: newToken });
   }
 
   // JWT expired — use stored Discord refresh_token to silently re-validate
@@ -158,7 +161,7 @@ router.post('/refresh', async (req, res) => {
   const freshToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('perscom_token', freshToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
   console.log(`[DISCORD] Silent refresh for user ${dbUser.discord_id}`);
-  return res.json({ user: payload });
+  return res.json({ user: payload, token: freshToken });
 });
 
 // Step 1: Redirect to Discord authorization
@@ -287,7 +290,9 @@ router.get('/discord/callback', async (req, res) => {
 
       const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
       res.cookie('perscom_token', token, cookieOpts(7 * 24 * 60 * 60 * 1000));
-      return res.redirect(`${FRONTEND_ORIGIN}/`);
+      // Pass token in URL so login works even when cross-domain cookies are blocked
+      // (Firefox Enhanced Tracking Protection, Safari ITP)
+      return res.redirect(`${FRONTEND_ORIGIN}/login?t=${encodeURIComponent(token)}`);
     }
 
     // New user — issue a short-lived registration token and redirect to register page
