@@ -115,7 +115,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // POST /api/documents/:id/images — upload image (admin only)
-router.post('/:id/images', authenticate, requireAdmin, upload.documentUpload.single('image'), (req, res) => {
+router.post('/:id/images', authenticate, requireAdmin, upload.documentUpload.single('image'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
   const db = getDb();

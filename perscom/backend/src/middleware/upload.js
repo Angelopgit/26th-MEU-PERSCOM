@@ -2,6 +2,32 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Optional image compression via sharp (graceful fallback if unavailable)
+let sharp = null;
+try { sharp = require('sharp'); } catch { console.warn('[COMPRESS] sharp not available — uploads will not be compressed'); }
+
+async function compressImage(filePath) {
+  if (!sharp) return;
+  const ext = path.extname(filePath).toLowerCase();
+  if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) return;
+  try {
+    const img = sharp(filePath).resize(1920, 1920, { fit: 'inside', withoutEnlargement: true });
+    let buf;
+    if (ext === '.png')        buf = await img.png({ compressionLevel: 9 }).toBuffer();
+    else if (ext === '.webp')  buf = await img.webp({ quality: 80 }).toBuffer();
+    else                       buf = await img.jpeg({ quality: 78, progressive: true, mozjpeg: true }).toBuffer();
+    fs.writeFileSync(filePath, buf);
+  } catch (e) {
+    console.warn('[COMPRESS] Failed to compress', path.basename(filePath), '—', e.message);
+  }
+}
+
+// Drop-in middleware: compress req.file after any multer handler
+const compressUploadedFile = async (req, res, next) => {
+  if (req.file) await compressImage(req.file.path);
+  next();
+};
+
 const UPLOAD_DIR = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -107,4 +133,5 @@ operationUpload.documentUpload = documentUpload;
 operationUpload.docFileUpload = docFileUpload;
 operationUpload.spotlightUpload = spotlightUpload;
 operationUpload.rankIconUpload = rankIconUpload;
+operationUpload.compressUploadedFile = compressUploadedFile;
 module.exports = operationUpload;

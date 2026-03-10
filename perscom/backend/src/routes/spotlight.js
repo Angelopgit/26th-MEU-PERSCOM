@@ -16,7 +16,7 @@ router.get('/', authenticate, (req, res) => {
 });
 
 // POST /api/spotlight — admin only
-router.post('/', authenticate, requireAdmin, upload.spotlightUpload.single('image'), (req, res) => {
+router.post('/', authenticate, requireAdmin, upload.spotlightUpload.single('image'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
   const db = getDb();
   const imageUrl = `/uploads/${req.file.filename}`;

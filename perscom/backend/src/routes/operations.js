@@ -84,7 +84,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // Upload image for an operation (admin only)
-router.post('/:id/image', authenticate, requireAdmin, upload.single('image'), (req, res) => {
+router.post('/:id/image', authenticate, requireAdmin, upload.single('image'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file provided' });
 
   const db = getDb();

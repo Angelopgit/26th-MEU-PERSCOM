@@ -70,7 +70,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // POST /api/ranks/:id/icon — upload rank icon (admin only)
-router.post('/:id/icon', authenticate, requireAdmin, upload.rankIconUpload.single('icon'), (req, res) => {
+router.post('/:id/icon', authenticate, requireAdmin, upload.rankIconUpload.single('icon'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const db = getDb();
   const rank = db.prepare('SELECT * FROM ranks WHERE id = ?').get(req.params.id);
