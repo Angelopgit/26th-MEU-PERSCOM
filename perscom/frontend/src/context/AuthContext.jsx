@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import { imgUrl } from '../utils/imgUrl';
 
 const AuthContext = createContext(null);
 
@@ -60,8 +61,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Fetch logo once on mount (public endpoint, no auth needed)
+  // Must convert the relative /uploads/... path to the full Railway origin URL
   useEffect(() => {
-    api.get('/settings/logo').then((r) => setLogoUrl(r.data.logo_url || null)).catch(() => {});
+    api.get('/settings/logo')
+      .then((r) => setLogoUrl(r.data.logo_url ? imgUrl(r.data.logo_url) : null))
+      .catch(() => {});
   }, []);
 
   const login = async (username, password) => {

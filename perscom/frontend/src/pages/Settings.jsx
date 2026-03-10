@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { ASSET_BASE } from '../utils/imgUrl';
+import { ASSET_BASE, imgUrl } from '../utils/imgUrl';
 
 const ROLE_LABELS = {
   admin: 'Administrator',
@@ -215,7 +215,7 @@ export default function Settings() {
       const res = await api.post('/settings/logo', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setLogoUrl(res.data.logo_url);
+      setLogoUrl(res.data.logo_url ? imgUrl(res.data.logo_url) : null);
       showFlash('Logo updated successfully.');
     } catch (err) {
       alert(err.response?.data?.error || 'Upload failed');
