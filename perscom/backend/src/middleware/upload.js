@@ -28,6 +28,28 @@ const compressUploadedFile = async (req, res, next) => {
   next();
 };
 
+// Rank icons: resize to max 64×64px (covers 2× retina) and compress tightly
+async function compressRankIconFile(filePath) {
+  if (!sharp) return;
+  const ext = path.extname(filePath).toLowerCase();
+  if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) return;
+  try {
+    const img = sharp(filePath).resize(64, 64, { fit: 'inside', withoutEnlargement: true });
+    let buf;
+    if (ext === '.png')       buf = await img.png({ compressionLevel: 9 }).toBuffer();
+    else if (ext === '.webp') buf = await img.webp({ quality: 85 }).toBuffer();
+    else                      buf = await img.jpeg({ quality: 82, progressive: true, mozjpeg: true }).toBuffer();
+    fs.writeFileSync(filePath, buf);
+  } catch (e) {
+    console.warn('[COMPRESS] Failed to compress rank icon', path.basename(filePath), '—', e.message);
+  }
+}
+
+const compressRankIcon = async (req, res, next) => {
+  if (req.file) await compressRankIconFile(req.file.path);
+  next();
+};
+
 const UPLOAD_DIR = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -134,4 +156,5 @@ operationUpload.docFileUpload = docFileUpload;
 operationUpload.spotlightUpload = spotlightUpload;
 operationUpload.rankIconUpload = rankIconUpload;
 operationUpload.compressUploadedFile = compressUploadedFile;
+operationUpload.compressRankIcon = compressRankIcon;
 module.exports = operationUpload;

@@ -245,7 +245,7 @@ function AddQualModal({ person, onClose, onAdded }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function MarineProfile() {
   const { id } = useParams();
-  const { isAdmin, canEdit } = useAuth();
+  const { isAdmin, canEdit, user: currentUser } = useAuth();
   const [person, setPerson]             = useState(null);
   const [loading, setLoading]           = useState(true);
   const [showAddQual, setShowAddQual]   = useState(false);
@@ -255,6 +255,7 @@ export default function MarineProfile() {
   const [attendance, setAttendance]     = useState(null);
   const [ranks, setRanks]               = useState([]);
   const [rankProgressionEnabled, setRankProgressionEnabled] = useState(false);
+  const [settingLoa, setSettingLoa]     = useState(false);
 
   const fetchPerson = useCallback(async () => {
     setLoading(true);
@@ -298,6 +299,18 @@ export default function MarineProfile() {
     }).catch(() => {});
   }, [person]);
 
+  const handleSetLoa = async (newStatus) => {
+    setSettingLoa(true);
+    try {
+      await api.patch(`/personnel/${id}/member-status`, { member_status: newStatus });
+      setPerson((p) => ({ ...p, member_status: newStatus }));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to update status');
+    } finally {
+      setSettingLoa(false);
+    }
+  };
+
   const handleRemoveQual = async (qualId) => {
     setRemovingQual(qualId);
     try {
@@ -335,6 +348,11 @@ export default function MarineProfile() {
   const tig = calcDuration(person.rank_since || person.date_of_entry);
   const memberStatus = person.member_status || 'Active';
   const memberStatusBadge = MEMBER_STATUS_STYLES[memberStatus] || 'badge-muted';
+
+  // Can this user change the LOA status? — self OR staff
+  const isSelf = currentUser?.personnel_id && Number(currentUser.personnel_id) === Number(id);
+  const isStaff = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
+  const canChangeLoa = (isSelf || isStaff) && person.status === 'Marine';
   const displayEvals = evalsExpanded ? person.evaluations : person.evaluations?.slice(0, 3);
 
   // Discord avatar URL
@@ -352,7 +370,31 @@ export default function MarineProfile() {
         <Link to="/personnel" className="flex items-center gap-2 text-[#4a6fa5] hover:text-[#dbeafe] transition-colors text-sm font-mono">
           <ArrowLeft size={14} /> Personnel
         </Link>
-        <span className={memberStatusBadge}>{memberStatus}</span>
+        <div className="flex items-center gap-2">
+          {/* LOA toggle — visible to self and staff */}
+          {canChangeLoa && (
+            memberStatus === 'Leave of Absence' ? (
+              <button
+                onClick={() => handleSetLoa('Active')}
+                disabled={settingLoa}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border border-amber-900/50 text-amber-400 hover:bg-amber-950/30 transition-colors rounded-sm disabled:opacity-40"
+              >
+                {settingLoa ? <Loader2 size={10} className="animate-spin" /> : null}
+                RETURN FROM LOA
+              </button>
+            ) : memberStatus === 'Active' ? (
+              <button
+                onClick={() => handleSetLoa('Leave of Absence')}
+                disabled={settingLoa}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border border-[#162448] text-[#4a6fa5] hover:border-amber-900/50 hover:text-amber-400 transition-colors rounded-sm disabled:opacity-40"
+              >
+                {settingLoa ? <Loader2 size={10} className="animate-spin" /> : null}
+                SET LOA
+              </button>
+            ) : null
+          )}
+          <span className={memberStatusBadge}>{memberStatus}</span>
+        </div>
       </div>
 
       {/* Profile header */}
@@ -472,8 +514,8 @@ export default function MarineProfile() {
         />
       </div>
 
-      {/* Rank Progression Bar (Marines only, when feature is enabled) */}
-      {rankProgressionEnabled && person.status === 'Marine' && ranks.length > 0 && (
+      {/* Rank Progression Bar (Marines only, when feature is enabled, after attendance loads) */}
+      {rankProgressionEnabled && person.status === 'Marine' && ranks.length > 0 && attendance !== null && (
         <RankProgressionBar person={person} ranks={ranks} attendance={attendance} />
       )}
 

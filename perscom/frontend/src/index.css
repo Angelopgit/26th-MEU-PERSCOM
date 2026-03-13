@@ -105,6 +105,11 @@
   .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* ── Form inputs ─────────────────────────────────────────────────────── */
+  /* Hide browser number-input spinners (they overlap text in narrow fields) */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
   .input-field {
     background: #050912;
     border: 1px solid #1e3364;

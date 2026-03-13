@@ -16,7 +16,7 @@ const ROLE_LABELS = {
 const ROLE_OPTIONS = ['admin', 'moderator', 'marine'];
 
 // ── Rank Row ──────────────────────────────────────────────────────────────────
-function RankRow({ rank, onUpdate, onDelete }) {
+function RankRow({ rank, discordRoles, onUpdate, onDelete }) {
   const iconRef = useRef(null);
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [name, setName]                   = useState(rank.name);
@@ -24,6 +24,7 @@ function RankRow({ rank, onUpdate, onDelete }) {
   const [reqOps, setReqOps]               = useState(rank.req_ops);
   const [reqTrn, setReqTrn]               = useState(rank.req_trainings);
   const [reqAtn, setReqAtn]               = useState(rank.req_attendance);
+  const [discordRoleId, setDiscordRoleId] = useState(rank.discord_role_id || '');
   const [deleting, setDeleting]           = useState(false);
 
   const save = useCallback(async (overrides = {}) => {
@@ -34,13 +35,14 @@ function RankRow({ rank, onUpdate, onDelete }) {
         req_ops: reqOps,
         req_trainings: reqTrn,
         req_attendance: reqAtn,
+        discord_role_id: discordRoleId || null,
         ...overrides,
       });
       onUpdate(res.data);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to save rank');
     }
-  }, [rank.id, name, sortOrder, reqOps, reqTrn, reqAtn, onUpdate]);
+  }, [rank.id, name, sortOrder, reqOps, reqTrn, reqAtn, discordRoleId, onUpdate]);
 
   const handleIconUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -70,93 +72,93 @@ function RankRow({ rank, onUpdate, onDelete }) {
   };
 
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[#162448]/40 last:border-0">
-      {/* Icon upload */}
-      <button
-        onClick={() => iconRef.current?.click()}
-        title="Upload rank icon"
-        className="shrink-0 hover:opacity-80 transition-opacity"
-      >
-        {uploadingIcon ? (
-          <Loader2 size={12} className="animate-spin text-[#3b82f6]" />
-        ) : rank.icon_url ? (
-          <img
-            src={`${ASSET_BASE}${rank.icon_url}`}
-            alt={rank.name}
-            className="w-7 h-7 object-contain rounded-sm"
-          />
-        ) : (
-          <div className="w-7 h-7 border border-dashed border-[#162448] rounded-sm flex items-center justify-center">
-            <Image size={10} className="text-[#2a4a80]" />
-          </div>
-        )}
-      </button>
-      <input ref={iconRef} type="file" accept="image/*" className="hidden" onChange={handleIconUpload} />
+    <div className="px-4 py-3 border-b border-[#162448]/40 last:border-0 space-y-2">
+      <div className="flex items-center gap-2.5">
+        {/* Icon upload button */}
+        <button
+          onClick={() => iconRef.current?.click()}
+          title="Upload rank icon (max 64×64px)"
+          className="shrink-0 hover:opacity-80 transition-opacity"
+        >
+          {uploadingIcon ? (
+            <Loader2 size={12} className="animate-spin text-[#3b82f6]" />
+          ) : rank.icon_url ? (
+            <img
+              src={`${ASSET_BASE}${rank.icon_url}`}
+              alt={rank.name}
+              className="w-8 h-8 object-contain rounded-sm border border-[#162448]/60"
+            />
+          ) : (
+            <div className="w-8 h-8 border border-dashed border-[#162448] rounded-sm flex items-center justify-center">
+              <Image size={11} className="text-[#2a4a80]" />
+            </div>
+          )}
+        </button>
+        <input ref={iconRef} type="file" accept="image/*" className="hidden" onChange={handleIconUpload} />
 
-      {/* Name */}
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={() => save({ name })}
-        className="input-field flex-1 py-1 text-xs"
-        placeholder="Rank name"
-      />
-
-      {/* Sort order */}
-      <div className="flex flex-col items-center shrink-0">
-        <span className="text-[#1a2f55] text-[9px] font-mono mb-0.5">ORDER</span>
+        {/* Name */}
         <input
-          type="number" min="0"
-          value={sortOrder}
-          onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-          onBlur={() => save({ sort_order: sortOrder })}
-          className="input-field w-12 py-1 text-xs text-center"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => save({ name })}
+          className="input-field flex-1 py-1 text-xs"
+          placeholder="Rank name"
         />
+
+        {/* Number inputs */}
+        <div className="flex gap-1.5 shrink-0">
+          {[
+            { label: 'ORD', val: sortOrder, set: setSortOrder, key: 'sort_order' },
+            { label: 'OPS', val: reqOps,    set: setReqOps,    key: 'req_ops' },
+            { label: 'TRN', val: reqTrn,    set: setReqTrn,    key: 'req_trainings' },
+            { label: 'ATN', val: reqAtn,    set: setReqAtn,    key: 'req_attendance' },
+          ].map(({ label, val, set, key }) => (
+            <div key={key} className="flex flex-col items-center">
+              <span className="text-[#1a2f55] text-[9px] font-mono mb-0.5">{label}</span>
+              <input
+                type="number" min="0"
+                value={val}
+                onChange={(e) => set(Number(e.target.value) || 0)}
+                onBlur={() => save({ [key]: val })}
+                className="input-field w-11 py-1 text-xs text-center"
+                style={{ paddingLeft: '0.25rem', paddingRight: '0.25rem' }}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Delete */}
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-[#2a4a80] hover:text-red-400 transition-colors shrink-0"
+          title="Delete rank"
+        >
+          {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+        </button>
       </div>
 
-      {/* Requirements */}
-      <div className="flex gap-2 shrink-0">
-        <div className="flex flex-col items-center">
-          <span className="text-[#1a2f55] text-[9px] font-mono mb-0.5">OPS</span>
-          <input
-            type="number" min="0"
-            value={reqOps}
-            onChange={(e) => setReqOps(Number(e.target.value) || 0)}
-            onBlur={() => save({ req_ops: reqOps })}
-            className="input-field w-12 py-1 text-xs text-center"
-          />
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-[#1a2f55] text-[9px] font-mono mb-0.5">TRN</span>
-          <input
-            type="number" min="0"
-            value={reqTrn}
-            onChange={(e) => setReqTrn(Number(e.target.value) || 0)}
-            onBlur={() => save({ req_trainings: reqTrn })}
-            className="input-field w-12 py-1 text-xs text-center"
-          />
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-[#1a2f55] text-[9px] font-mono mb-0.5">ATN</span>
-          <input
-            type="number" min="0"
-            value={reqAtn}
-            onChange={(e) => setReqAtn(Number(e.target.value) || 0)}
-            onBlur={() => save({ req_attendance: reqAtn })}
-            className="input-field w-12 py-1 text-xs text-center"
-          />
-        </div>
+      {/* Discord role mapping */}
+      <div className="flex items-center gap-2 pl-10">
+        <span className="text-[#1a2f55] text-[9px] font-mono shrink-0">DISCORD ROLE</span>
+        <select
+          value={discordRoleId}
+          onChange={(e) => {
+            setDiscordRoleId(e.target.value);
+            save({ discord_role_id: e.target.value || null });
+          }}
+          className="flex-1 bg-[#050912] border border-[#1e3364] text-[#dbeafe] text-xs font-mono rounded-sm px-2 py-1 outline-none focus:border-[#3b82f6]"
+          style={{ minHeight: 0, height: '26px' }}
+        >
+          <option value="">— not mapped —</option>
+          {discordRoles.map((r) => (
+            <option key={r.id} value={r.id}>{r.name}</option>
+          ))}
+        </select>
+        {!discordRoles.length && (
+          <span className="text-[#1a2f55] text-[9px] font-mono">Bot offline</span>
+        )}
       </div>
-
-      {/* Delete */}
-      <button
-        onClick={handleDelete}
-        disabled={deleting}
-        className="text-[#2a4a80] hover:text-red-400 transition-colors shrink-0"
-        title="Delete rank"
-      >
-        {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-      </button>
     </div>
   );
 }
@@ -182,6 +184,7 @@ export default function Settings() {
   const [togglingProgression, setTogglingProgression]       = useState(false);
   const [newRankName, setNewRankName]               = useState('');
   const [addingRank, setAddingRank]                 = useState(false);
+  const [discordRoles, setDiscordRoles]             = useState([]);
 
   const showFlash = (msg) => {
     setFlash(msg);
@@ -202,6 +205,9 @@ export default function Settings() {
       setRankProgressionEnabled(rpRes.data.enabled);
     }).catch(() => {})
       .finally(() => setRanksLoading(false));
+
+    // Fetch Discord guild roles for rank mapping (best-effort — requires bot)
+    api.get('/settings/guild-roles').then((r) => setDiscordRoles(r.data)).catch(() => {});
   }, []);
 
   // ── Logo handlers ──────────────────────────────────────────────────────────
@@ -481,6 +487,7 @@ export default function Settings() {
               <RankRow
                 key={rank.id}
                 rank={rank}
+                discordRoles={discordRoles}
                 onUpdate={handleRankUpdated}
                 onDelete={handleRankDeleted}
               />

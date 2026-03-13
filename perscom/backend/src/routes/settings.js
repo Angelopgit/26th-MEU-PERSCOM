@@ -61,6 +61,17 @@ router.patch('/rank-progression', authenticate, requireAdmin, (req, res) => {
   res.json({ enabled: !!enabled });
 });
 
+// GET /api/settings/guild-roles — admin only, list all Discord roles in the server
+router.get('/guild-roles', authenticate, requireAdmin, async (req, res) => {
+  const { getGuildRoles } = require('../discord/bot');
+  try {
+    const roles = await getGuildRoles();
+    res.json(roles);
+  } catch {
+    res.json([]);
+  }
+});
+
 // POST /api/settings/sync-roles — admin only, trigger full Discord role sync
 router.post('/sync-roles', authenticate, requireAdmin, async (req, res) => {
   try {

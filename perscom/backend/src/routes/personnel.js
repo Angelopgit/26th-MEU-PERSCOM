@@ -219,7 +219,8 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   res.json(getPersonWithDetails(db, req.params.id));
 });
 
-// Update member status (Active / Leave of Absence / Inactive) — both roles
+// Update member status (Active / Leave of Absence / Inactive)
+// Admins/moderators can change anyone. Marines can only change their own record.
 router.patch('/:id/member-status', authenticate, (req, res) => {
   const { member_status } = req.body;
   if (!VALID_MEMBER_STATUSES.includes(member_status)) {
@@ -229,6 +230,18 @@ router.patch('/:id/member-status', authenticate, (req, res) => {
   const db = getDb();
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
+
+  // Marines can only update their own status
+  const isSelf = req.user.personnel_id && req.user.personnel_id === person.id;
+  const isStaff = req.user.role === 'admin' || req.user.role === 'moderator';
+  if (!isSelf && !isStaff) {
+    return res.status(403).json({ error: 'You can only change your own status' });
+  }
+
+  // Marines cannot set Inactive (staff only)
+  if (!isStaff && member_status === 'Inactive') {
+    return res.status(403).json({ error: 'Only staff can mark a Marine as Inactive' });
+  }
 
   const oldStatus = person.member_status;
   db.prepare(

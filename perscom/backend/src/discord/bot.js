@@ -187,4 +187,26 @@ async function getMemberRoles(discordUserId) {
   }
 }
 
-module.exports = { startBot, getClient, getMemberRoles };
+/**
+ * Fetch all guild roles for the configured Discord server.
+ * Returns array of { id, name, color } sorted by position (highest first).
+ */
+async function getGuildRoles() {
+  if (!client || !process.env.DISCORD_GUILD_ID) return [];
+  try {
+    const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+    await guild.roles.fetch();
+    return guild.roles.cache
+      .filter(r => r.name !== '@everyone')
+      .sort((a, b) => b.position - a.position)
+      .map(r => ({
+        id:    r.id,
+        name:  r.name,
+        color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#4a6fa5',
+      }));
+  } catch {
+    return [];
+  }
+}
+
+module.exports = { startBot, getClient, getMemberRoles, getGuildRoles };

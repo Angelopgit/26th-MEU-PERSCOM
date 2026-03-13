@@ -300,6 +300,7 @@ function initializeDatabase() {
   try { database.exec('ALTER TABLE operations ADD COLUMN image_url TEXT'); } catch {}
   try { database.exec('ALTER TABLE personnel ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL'); } catch {}
   try { database.exec("ALTER TABLE operations ADD COLUMN type TEXT NOT NULL DEFAULT 'Operation'"); } catch {}
+  try { database.exec('ALTER TABLE ranks ADD COLUMN discord_role_id TEXT'); } catch {}
 
   // ── Discord OAuth migration ────────────────────────────────────────────────
   // Migrate users table to support Discord auth and marine role.

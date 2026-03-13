@@ -32,21 +32,22 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// PUT /api/ranks/:id — update rank name/requirements/order (admin only)
+// PUT /api/ranks/:id — update rank name/requirements/order/discord_role (admin only)
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
-  const { name, sort_order, req_attendance, req_ops, req_trainings } = req.body;
+  const { name, sort_order, req_attendance, req_ops, req_trainings, discord_role_id } = req.body;
   const db = getDb();
   const rank = db.prepare('SELECT * FROM ranks WHERE id = ?').get(req.params.id);
   if (!rank) return res.status(404).json({ error: 'Rank not found' });
   try {
     db.prepare(
-      'UPDATE ranks SET name = ?, sort_order = ?, req_attendance = ?, req_ops = ?, req_trainings = ? WHERE id = ?'
+      'UPDATE ranks SET name = ?, sort_order = ?, req_attendance = ?, req_ops = ?, req_trainings = ?, discord_role_id = ? WHERE id = ?'
     ).run(
       name ?? rank.name,
       sort_order ?? rank.sort_order,
       req_attendance ?? rank.req_attendance,
       req_ops ?? rank.req_ops,
       req_trainings ?? rank.req_trainings,
+      discord_role_id !== undefined ? (discord_role_id || null) : rank.discord_role_id,
       rank.id
     );
     const updated = db.prepare('SELECT * FROM ranks WHERE id = ?').get(rank.id);
@@ -69,8 +70,8 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/ranks/:id/icon — upload rank icon (admin only)
-router.post('/:id/icon', authenticate, requireAdmin, upload.rankIconUpload.single('icon'), upload.compressUploadedFile, (req, res) => {
+// POST /api/ranks/:id/icon — upload rank icon (admin only), resized to max 64×64px
+router.post('/:id/icon', authenticate, requireAdmin, upload.rankIconUpload.single('icon'), upload.compressRankIcon, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const db = getDb();
   const rank = db.prepare('SELECT * FROM ranks WHERE id = ?').get(req.params.id);
