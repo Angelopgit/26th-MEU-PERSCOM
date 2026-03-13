@@ -108,12 +108,14 @@ function RankProgressionBar({ person, ranks, attendance }) {
   const attendanceEligible = nextRank.req_attendance === 0 || total >= nextRank.req_attendance;
   const eligible = opsEligible && trainingsEligible && attendanceEligible;
 
-  // Progress = min ratio across all non-zero requirements
+  // Progress = average ratio across all non-zero requirements (each capped at 100%)
   const ratios = [];
-  if (nextRank.req_ops       > 0) ratios.push(ops       / nextRank.req_ops);
-  if (nextRank.req_trainings > 0) ratios.push(trainings / nextRank.req_trainings);
-  if (nextRank.req_attendance > 0) ratios.push(total    / nextRank.req_attendance);
-  const progressPct = ratios.length > 0 ? Math.round(Math.min(...ratios) * 100) : 100;
+  if (nextRank.req_ops        > 0) ratios.push(Math.min(ops       / nextRank.req_ops,        1));
+  if (nextRank.req_trainings  > 0) ratios.push(Math.min(trainings / nextRank.req_trainings,  1));
+  if (nextRank.req_attendance > 0) ratios.push(Math.min(total     / nextRank.req_attendance, 1));
+  const progressPct = ratios.length > 0
+    ? Math.round((ratios.reduce((s, r) => s + r, 0) / ratios.length) * 100)
+    : 100;
 
   return (
     <div className="card overflow-hidden">
