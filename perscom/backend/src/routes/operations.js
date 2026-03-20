@@ -5,6 +5,7 @@ const { getDb } = require('../config/database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { logActivity } = require('../utils/logActivity');
+const { announceEvent } = require('../discord/announcer');
 
 const router = express.Router();
 
@@ -43,7 +44,16 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
 
   logActivity('OPERATION_CREATED', `${opType}: ${title}`, req.user.id);
 
-  res.status(201).json(getOpWithCreator(db, result.lastInsertRowid));
+  const newOp = getOpWithCreator(db, result.lastInsertRowid);
+
+  // Post to Discord events channel and store message ID
+  announceEvent(newOp).then((msgId) => {
+    if (msgId) {
+      db.prepare('UPDATE operations SET discord_message_id = ? WHERE id = ?').run(msgId, newOp.id);
+    }
+  }).catch(() => {});
+
+  res.status(201).json(newOp);
 });
 
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
@@ -169,6 +179,21 @@ router.delete('/:id/attendance/:personnel_id', authenticate, requireAdmin, (req,
 
   if (result.changes === 0) return res.status(404).json({ error: 'Attendance record not found' });
   res.json({ success: true });
+});
+
+// ── RSVP endpoints ─────────────────────────────────────────────────────────
+
+// GET /api/operations/:id/rsvp — get RSVP counts + list
+router.get('/:id/rsvp', authenticate, (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(
+    'SELECT * FROM event_rsvps WHERE operation_id = ? ORDER BY updated_at ASC'
+  ).all(req.params.id);
+
+  const counts = { attending: 0, tentative: 0, not_attending: 0 };
+  for (const r of rows) counts[r.status]++;
+
+  res.json({ counts, rsvps: rows });
 });
 
 module.exports = router;

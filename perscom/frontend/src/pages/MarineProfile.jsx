@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Star, Shield, Clock, Calendar, Award,
   CheckSquare, Loader2, Plus, X, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Target, TrendingUp,
+  CheckCircle2, AlertTriangle, Target, TrendingUp, CalendarClock,
 } from 'lucide-react';
 import { differenceInDays, format, formatDistanceToNow } from 'date-fns';
 import api from '../utils/api';
@@ -192,6 +192,63 @@ function RankProgressionBar({ person, ranks, attendance }) {
   );
 }
 
+// ── LOA Modal ─────────────────────────────────────────────────────────────────
+function LoaModal({ onClose, onSubmit, saving }) {
+  const today = new Date().toISOString().split('T')[0];
+  const [form, setForm] = useState({ loa_start_date: today, loa_end_date: '', loa_reason: '' });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(form);
+  };
+
+  return (
+    <Modal title="Set Leave of Absence" onClose={onClose} maxWidth="max-w-sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Start Date</label>
+            <input
+              type="date"
+              className="input-field"
+              value={form.loa_start_date}
+              onChange={(e) => setForm((f) => ({ ...f, loa_start_date: e.target.value }))}
+              required
+            />
+          </div>
+          <div>
+            <label className="label">End Date <span className="text-[#1a2f55]">(optional)</span></label>
+            <input
+              type="date"
+              className="input-field"
+              value={form.loa_end_date}
+              min={form.loa_start_date}
+              onChange={(e) => setForm((f) => ({ ...f, loa_end_date: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="label">Reason <span className="text-[#1a2f55]">(optional)</span></label>
+          <textarea
+            className="input-field resize-none"
+            rows={3}
+            placeholder="Brief reason for leave..."
+            value={form.loa_reason}
+            onChange={(e) => setForm((f) => ({ ...f, loa_reason: e.target.value }))}
+          />
+        </div>
+        <div className="flex gap-2 justify-end pt-1">
+          <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
+            {saving && <Loader2 size={13} className="animate-spin" />}
+            Confirm LOA
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // ── Add Qualification Modal ───────────────────────────────────────────────────
 function AddQualModal({ person, onClose, onAdded }) {
   const [form, setForm] = useState({ name: '', awarded_at: new Date().toISOString().split('T')[0] });
@@ -258,6 +315,7 @@ export default function MarineProfile() {
   const [ranks, setRanks]               = useState([]);
   const [rankProgressionEnabled, setRankProgressionEnabled] = useState(false);
   const [settingLoa, setSettingLoa]     = useState(false);
+  const [showLoaModal, setShowLoaModal] = useState(false);
 
   const fetchPerson = useCallback(async () => {
     setLoading(true);
@@ -301,16 +359,31 @@ export default function MarineProfile() {
     }).catch(() => {});
   }, [person]);
 
-  const handleSetLoa = async (newStatus) => {
+  const handleSetLoa = async (newStatus, loaFields = {}) => {
     setSettingLoa(true);
     try {
-      await api.patch(`/personnel/${id}/member-status`, { member_status: newStatus });
-      setPerson((p) => ({ ...p, member_status: newStatus }));
+      const res = await api.patch(`/personnel/${id}/member-status`, { member_status: newStatus, ...loaFields });
+      setPerson((p) => ({
+        ...p,
+        member_status: newStatus,
+        loa_start_date: res.data.loa_start_date || null,
+        loa_end_date:   res.data.loa_end_date   || null,
+        loa_reason:     res.data.loa_reason     || null,
+      }));
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to update status');
     } finally {
       setSettingLoa(false);
     }
+  };
+
+  const handleLoaSubmit = async (form) => {
+    await handleSetLoa('Leave of Absence', {
+      loa_start_date: form.loa_start_date || null,
+      loa_end_date:   form.loa_end_date   || null,
+      loa_reason:     form.loa_reason     || null,
+    });
+    setShowLoaModal(false);
   };
 
   const handleRemoveQual = async (qualId) => {
@@ -386,7 +459,7 @@ export default function MarineProfile() {
               </button>
             ) : memberStatus === 'Active' ? (
               <button
-                onClick={() => handleSetLoa('Leave of Absence')}
+                onClick={() => setShowLoaModal(true)}
                 disabled={settingLoa}
                 className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border border-[#162448] text-[#4a6fa5] hover:border-amber-900/50 hover:text-amber-400 transition-colors rounded-sm disabled:opacity-40"
               >
@@ -485,6 +558,31 @@ export default function MarineProfile() {
           </div>
         </div>
       </div>
+
+      {/* LOA Details — shown when on Leave of Absence */}
+      {memberStatus === 'Leave of Absence' && (
+        <div className="bg-amber-950/20 border border-amber-900/40 rounded-sm p-4 flex items-start gap-3">
+          <CalendarClock size={15} className="text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="text-amber-400 text-xs font-mono font-bold tracking-widest">LEAVE OF ABSENCE</div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 mt-1">
+              {person.loa_start_date && (
+                <span className="text-[#93c5fd] text-xs font-mono">
+                  Start: {format(new Date(person.loa_start_date + 'T00:00:00'), 'MMM dd, yyyy')}
+                </span>
+              )}
+              {person.loa_end_date && (
+                <span className="text-[#93c5fd] text-xs font-mono">
+                  End: {format(new Date(person.loa_end_date + 'T00:00:00'), 'MMM dd, yyyy')}
+                </span>
+              )}
+            </div>
+            {person.loa_reason && (
+              <p className="text-[#93c5fd] text-sm mt-1 italic">{person.loa_reason}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Metrics row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -695,6 +793,14 @@ export default function MarineProfile() {
           person={person}
           onClose={() => setShowAddQual(false)}
           onAdded={handleQualAdded}
+        />
+      )}
+
+      {showLoaModal && (
+        <LoaModal
+          onClose={() => setShowLoaModal(false)}
+          onSubmit={handleLoaSubmit}
+          saving={settingLoa}
         />
       )}
     </div>

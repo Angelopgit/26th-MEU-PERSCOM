@@ -302,6 +302,28 @@ function initializeDatabase() {
   try { database.exec("ALTER TABLE operations ADD COLUMN type TEXT NOT NULL DEFAULT 'Operation'"); } catch {}
   try { database.exec('ALTER TABLE ranks ADD COLUMN discord_role_id TEXT'); } catch {}
 
+  // LOA metadata
+  try { database.exec('ALTER TABLE personnel ADD COLUMN loa_start_date DATE'); } catch {}
+  try { database.exec('ALTER TABLE personnel ADD COLUMN loa_end_date DATE'); } catch {}
+  try { database.exec('ALTER TABLE personnel ADD COLUMN loa_reason TEXT'); } catch {}
+
+  // Discord event message tracking
+  try { database.exec('ALTER TABLE operations ADD COLUMN discord_message_id TEXT'); } catch {}
+
+  // Event RSVP table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS event_rsvps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      operation_id INTEGER NOT NULL,
+      discord_user_id TEXT NOT NULL,
+      discord_username TEXT,
+      status TEXT NOT NULL CHECK(status IN ('attending', 'tentative', 'not_attending')),
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(operation_id, discord_user_id),
+      FOREIGN KEY (operation_id) REFERENCES operations(id) ON DELETE CASCADE
+    );
+  `);
+
   // ── Discord OAuth migration ────────────────────────────────────────────────
   // Migrate users table to support Discord auth and marine role.
   //

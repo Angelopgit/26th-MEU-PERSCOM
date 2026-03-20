@@ -314,7 +314,7 @@ export default function Operations() {
   const { isAdmin } = useAuth();
   const [ops, setOps] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('Upcoming');
   const [typeFilter, setTypeFilter] = useState('All');
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -372,15 +372,24 @@ export default function Operations() {
     setOps((prev) => prev.map((o) => o.id === opId ? { ...o, image_url: newUrl } : o));
   };
 
-  const filtered = ops.filter((op) => {
-    const statusMatch = filter === 'All' || opStatus(op) === filter.toUpperCase();
-    const typeMatch = typeFilter === 'All' || (op.type || 'Operation') === typeFilter;
-    return statusMatch && typeMatch;
-  });
+  // Separate upcoming (active) from completed, each sorted independently
+  const upcomingOps = ops
+    .filter((op) => opStatus(op) === 'ACTIVE')
+    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date)); // soonest first
 
-  const active = ops.filter((op) => opStatus(op) === 'ACTIVE').length;
-  const completed = ops.filter((op) => opStatus(op) === 'COMPLETED').length;
-  const opsCount = ops.filter(o => (o.type || 'Operation') === 'Operation').length;
+  const completedOps = ops
+    .filter((op) => opStatus(op) === 'COMPLETED')
+    .sort((a, b) => new Date(b.start_date) - new Date(a.start_date)); // most recent first
+
+  const baseList = statusFilter === 'Upcoming' ? upcomingOps : completedOps;
+
+  const filtered = baseList.filter((op) =>
+    typeFilter === 'All' || (op.type || 'Operation') === typeFilter
+  );
+
+  const upcomingCount  = upcomingOps.length;
+  const completedCount = completedOps.length;
+  const opsCount       = ops.filter(o => (o.type || 'Operation') === 'Operation').length;
   const trainingsCount = ops.filter(o => o.type === 'Training').length;
 
   return (
@@ -388,21 +397,35 @@ export default function Operations() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="space-y-2">
-          {/* Status filter */}
-          <div className="flex gap-1 flex-wrap">
-            {['All', 'Active', 'Completed'].map((f) => (
+          {/* Status filter — Upcoming / Completed, mutually exclusive */}
+          <div className="flex gap-1 flex-wrap items-center">
+            {[
+              { key: 'Upcoming',  label: `Upcoming`,  count: upcomingCount  },
+              { key: 'Completed', label: `Completed`, count: completedCount },
+            ].map(({ key, label, count }) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 text-xs rounded-sm border transition-colors font-mono ${
-                  filter === f
-                    ? 'bg-[#3b82f6]/10 text-[#60a5fa] border-[#3b82f6]/40'
+                key={key}
+                onClick={() => setStatusFilter(key)}
+                className={`px-3 py-1.5 text-xs rounded-sm border transition-colors font-mono flex items-center gap-1.5 ${
+                  statusFilter === key
+                    ? key === 'Upcoming'
+                      ? 'bg-[#3b82f6]/10 text-[#60a5fa] border-[#3b82f6]/40'
+                      : 'bg-[#162448]/60 text-[#dbeafe] border-[#3b82f6]/30'
                     : 'text-[#4a6fa5] border-[#162448] hover:border-[#3b82f6]/20 hover:text-[#93c5fd]'
                 }`}
               >
-                {f}
+                {label}
+                <span className={`text-[10px] px-1 rounded ${
+                  statusFilter === key ? 'text-[#60a5fa]' : 'text-[#1a2f55]'
+                }`}>
+                  {count}
+                </span>
               </button>
             ))}
+            <div className="flex items-center gap-3 ml-2 text-xs font-mono text-[#1a2f55]">
+              <span>OPS <span className="text-[#4a6fa5]">{opsCount}</span></span>
+              <span>TRN <span className="text-[#4a6fa5]">{trainingsCount}</span></span>
+            </div>
           </div>
           {/* Type filter */}
           <div className="flex gap-1 flex-wrap">
@@ -419,12 +442,6 @@ export default function Operations() {
                 {t === 'Operation' ? '⚔️ ' : t === 'Training' ? '🎯 ' : ''}{t}
               </button>
             ))}
-            <div className="flex items-center gap-3 ml-2 text-xs font-mono text-[#1a2f55]">
-              <span>ACTIVE <span className="text-[#4a6fa5]">{active}</span></span>
-              <span>DONE <span className="text-[#4a6fa5]">{completed}</span></span>
-              <span>OPS <span className="text-[#4a6fa5]">{opsCount}</span></span>
-              <span>TRN <span className="text-[#4a6fa5]">{trainingsCount}</span></span>
-            </div>
           </div>
         </div>
         {isAdmin && (

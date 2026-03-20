@@ -222,7 +222,7 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
 // Update member status (Active / Leave of Absence / Inactive)
 // Admins/moderators can change anyone. Marines can only change their own record.
 router.patch('/:id/member-status', authenticate, (req, res) => {
-  const { member_status } = req.body;
+  const { member_status, loa_start_date, loa_end_date, loa_reason } = req.body;
   if (!VALID_MEMBER_STATUSES.includes(member_status)) {
     return res.status(400).json({ error: 'Invalid member_status value' });
   }
@@ -244,9 +244,17 @@ router.patch('/:id/member-status', authenticate, (req, res) => {
   }
 
   const oldStatus = person.member_status;
-  db.prepare(
-    'UPDATE personnel SET member_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-  ).run(member_status, req.params.id);
+
+  if (member_status === 'Leave of Absence') {
+    db.prepare(
+      'UPDATE personnel SET member_status = ?, loa_start_date = ?, loa_end_date = ?, loa_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(member_status, loa_start_date || null, loa_end_date || null, loa_reason || null, req.params.id);
+  } else {
+    // Clear LOA fields when returning to Active or marking Inactive
+    db.prepare(
+      'UPDATE personnel SET member_status = ?, loa_start_date = NULL, loa_end_date = NULL, loa_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(member_status, req.params.id);
+  }
 
   logActivity('STATUS_CHANGED', `${person.name}: ${oldStatus} → ${member_status}`, req.user.id);
 
@@ -257,11 +265,20 @@ router.patch('/:id/member-status', authenticate, (req, res) => {
       person.name,
       oldStatus,
       member_status,
-      req.user.display_name
+      req.user.display_name,
+      loa_start_date || null,
+      loa_end_date || null,
+      loa_reason || null
     ).catch(() => {});
   }
 
-  res.json({ success: true, member_status });
+  res.json({
+    success: true,
+    member_status,
+    loa_start_date: member_status === 'Leave of Absence' ? (loa_start_date || null) : null,
+    loa_end_date: member_status === 'Leave of Absence' ? (loa_end_date || null) : null,
+    loa_reason: member_status === 'Leave of Absence' ? (loa_reason || null) : null,
+  });
 });
 
 // Delete personnel

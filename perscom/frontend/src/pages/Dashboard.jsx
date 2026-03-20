@@ -24,7 +24,22 @@ const ACTION_LABELS = {
   DOCUMENT_CREATED:     'Document',
 };
 
-function StatCard({ label, value, icon: Icon, color = 'green', sub }) {
+function DeltaBadge({ delta, zeroLabel }) {
+  if (delta === null || delta === undefined) return null;
+  if (delta === 0) return (
+    <span className="text-[#1a2f55] text-[10px] font-mono">
+      {zeroLabel || '— same as last month'}
+    </span>
+  );
+  const positive = delta > 0;
+  return (
+    <span className={`text-[10px] font-mono font-semibold ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
+      {positive ? '▲' : '▼'} {Math.abs(delta)} {positive ? 'more' : 'fewer'} than last month
+    </span>
+  );
+}
+
+function StatCard({ label, value, icon: Icon, color = 'green', sub, delta, deltaZeroLabel }) {
   const styles = {
     green: { wrap: 'text-[#60a5fa] bg-[#3b82f6]/10 border-[#3b82f6]/25', val: 'text-[#60a5fa]' },
     amber: { wrap: 'text-amber-400 bg-amber-900/15 border-amber-900/30', val: 'text-amber-400' },
@@ -42,6 +57,11 @@ function StatCard({ label, value, icon: Icon, color = 'green', sub }) {
       </div>
       <div className={`text-3xl font-mono font-bold ${s.val}`}>{value ?? '—'}</div>
       {sub && <div className="text-[#4a6fa5] text-xs mt-1">{sub}</div>}
+      {(delta !== undefined && delta !== null) && (
+        <div className="mt-1.5">
+          <DeltaBadge delta={delta} zeroLabel={deltaZeroLabel} />
+        </div>
+      )}
     </div>
   );
 }
@@ -374,10 +394,39 @@ export default function Dashboard() {
     <div className="space-y-4 max-w-6xl">
       {/* Stats — full width */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Personnel" value={stats?.totalPersonnel} icon={Users} color="green" />
-        <StatCard label="Marines" value={stats?.marines} icon={UserCheck} color="blue" sub={`${stats?.civilians ?? 0} civilians`} />
-        <StatCard label="Pending Evals" value={stats?.pendingEvals} icon={AlertTriangle} color={pendingColor} sub="30-day cycle" />
-        <StatCard label="Active Ops" value={stats?.activeOps} icon={Map} color="blue" />
+        <StatCard
+          label="Total Personnel"
+          value={stats?.totalPersonnel}
+          icon={Users}
+          color="green"
+          sub={stats?.onLoa > 0 ? `${stats.onLoa} on LOA` : undefined}
+          delta={stats?.personnelDelta}
+          deltaZeroLabel="— no change last month"
+        />
+        <StatCard
+          label="Marines"
+          value={stats?.marines}
+          icon={UserCheck}
+          color="blue"
+          sub={`${stats?.civilians ?? 0} civilians`}
+          delta={stats?.marinesDelta}
+          deltaZeroLabel="— no change last month"
+        />
+        <StatCard
+          label="Pending Evals"
+          value={stats?.pendingEvals}
+          icon={AlertTriangle}
+          color={pendingColor}
+          sub="30-day cycle"
+        />
+        <StatCard
+          label="Active Ops"
+          value={stats?.activeOps}
+          icon={Map}
+          color="blue"
+          delta={stats?.opsDelta}
+          deltaZeroLabel="— same as last month"
+        />
       </div>
 
       {/* Two-column layout */}

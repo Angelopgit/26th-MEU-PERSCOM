@@ -15,6 +15,7 @@ router.get('/stats', authenticate, (req, res) => {
   const allMarines = db.prepare("SELECT id FROM personnel WHERE status = 'Marine'").all();
   const now = new Date();
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const sixtyDaysAgo  = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
 
   let pendingEvals = 0;
   for (const m of allMarines) {
@@ -29,6 +30,51 @@ router.get('/stats', authenticate, (req, res) => {
   const activeOps = db.prepare(
     "SELECT COUNT(*) as c FROM operations WHERE end_date IS NULL OR date(end_date) >= date('now')"
   ).get().c;
+
+  // ── Analytics deltas ──────────────────────────────────────────────────────
+
+  // Personnel added in last 30 days vs 30–60 days ago
+  const personnelLast30 = db.prepare(
+    "SELECT COUNT(*) as c FROM personnel WHERE created_at >= ?"
+  ).get(thirtyDaysAgo).c;
+
+  const personnelPrev30 = db.prepare(
+    "SELECT COUNT(*) as c FROM personnel WHERE created_at >= ? AND created_at < ?"
+  ).get(sixtyDaysAgo, thirtyDaysAgo).c;
+
+  const personnelDelta = personnelLast30 - personnelPrev30;
+
+  // Marines added in last 30 days vs prev 30
+  const marinesLast30 = db.prepare(
+    "SELECT COUNT(*) as c FROM personnel WHERE status = 'Marine' AND created_at >= ?"
+  ).get(thirtyDaysAgo).c;
+
+  const marinesPrev30 = db.prepare(
+    "SELECT COUNT(*) as c FROM personnel WHERE status = 'Marine' AND created_at >= ? AND created_at < ?"
+  ).get(sixtyDaysAgo, thirtyDaysAgo).c;
+
+  const marinesDelta = marinesLast30 - marinesPrev30;
+
+  // Ops created this calendar month vs last calendar month
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+
+  const opsThisMonth = db.prepare(
+    "SELECT COUNT(*) as c FROM operations WHERE created_at >= ?"
+  ).get(thisMonthStart).c;
+
+  const opsLastMonth = db.prepare(
+    "SELECT COUNT(*) as c FROM operations WHERE created_at >= ? AND created_at < ?"
+  ).get(lastMonthStart, thisMonthStart).c;
+
+  const opsDelta = opsThisMonth - opsLastMonth;
+
+  // Personnel currently on LOA
+  const onLoa = db.prepare(
+    "SELECT COUNT(*) as c FROM personnel WHERE member_status = 'Leave of Absence'"
+  ).get().c;
+
+  // ── Rest of stats ─────────────────────────────────────────────────────────
 
   const recentActivity = db.prepare(`
     SELECT al.*, u.display_name as user_name
@@ -48,7 +94,7 @@ router.get('/stats', authenticate, (req, res) => {
 
   // Next upcoming operation or training
   const nextOp = db.prepare(`
-    SELECT id, title, type, start_date, image_url
+    SELECT id, title, type, start_date, image_url, discord_message_id
     FROM operations
     WHERE date(start_date) >= date('now')
     ORDER BY start_date ASC
@@ -78,6 +124,15 @@ router.get('/stats', authenticate, (req, res) => {
     latestAnnouncement: latestAnnouncement || null,
     nextOp,
     personnelGrowth,
+    // Analytics deltas
+    personnelLast30,
+    personnelDelta,
+    marinesLast30,
+    marinesDelta,
+    opsThisMonth,
+    opsLastMonth,
+    opsDelta,
+    onLoa,
   });
 });
 

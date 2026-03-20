@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, Collection, REST, Routes } = require('discord.js');
 const { getDb } = require('../config/database');
 const { logActivity } = require('../utils/logActivity');
 
@@ -25,8 +25,10 @@ async function startBot() {
   client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMembers, // Privileged — enable in Discord Developer Portal > Bot > Server Members Intent
+      GatewayIntentBits.GuildMembers,        // Privileged — enable in Discord Developer Portal > Bot > Server Members Intent
+      GatewayIntentBits.GuildMessageReactions, // For event RSVP reactions
     ],
+    partials: [Partials.Message, Partials.Reaction, Partials.User], // Required to receive reactions on older messages
   });
 
   client.commands = new Collection();
@@ -40,6 +42,7 @@ async function startBot() {
     require('./commands/gear'),
     require('./commands/evaluate'),
     require('./commands/deactivate'),
+    require('./commands/event_refresh'),
   ];
 
   for (const cmd of commands) {
@@ -157,6 +160,57 @@ async function startBot() {
       console.error('[BOT] guildMemberRemove error:', err.message);
     }
   });
+
+  // ── RSVP reaction handler ─────────────────────────────────────────────────
+  // Maps emoji to status. Bot's own reactions (✅🟡❌) are ignored.
+  const RSVP_EMOJI_MAP = { '✅': 'attending', '🟡': 'tentative', '❌': 'not_attending' };
+
+  async function handleRsvpReaction(reaction, user, adding) {
+    if (user.bot) return;
+
+    // Fetch partial reaction/message if needed
+    if (reaction.partial) { try { await reaction.fetch(); } catch { return; } }
+    if (reaction.message.partial) { try { await reaction.message.fetch(); } catch { return; } }
+
+    const status = RSVP_EMOJI_MAP[reaction.emoji.name];
+    if (!status) return;
+
+    const db = getDb();
+    const op = db.prepare(
+      'SELECT id, start_date FROM operations WHERE discord_message_id = ?'
+    ).get(reaction.message.id);
+    if (!op) return;
+
+    if (adding) {
+      // Remove other RSVP emoji reactions from this user on this message (enforce single choice)
+      for (const [emoji, otherStatus] of Object.entries(RSVP_EMOJI_MAP)) {
+        if (otherStatus !== status) {
+          const otherReaction = reaction.message.reactions.cache.find(r => r.emoji.name === emoji);
+          if (otherReaction) {
+            otherReaction.users.remove(user.id).catch(() => {});
+          }
+          // Also clear from DB in case it was set before bot could remove it
+          db.prepare(
+            "DELETE FROM event_rsvps WHERE operation_id = ? AND discord_user_id = ? AND status = ?"
+          ).run(op.id, user.id, otherStatus);
+        }
+      }
+
+      db.prepare(`
+        INSERT INTO event_rsvps (operation_id, discord_user_id, discord_username, status, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(operation_id, discord_user_id) DO UPDATE SET status = excluded.status, discord_username = excluded.discord_username, updated_at = CURRENT_TIMESTAMP
+      `).run(op.id, user.id, user.username, status);
+    } else {
+      // Only remove if the stored status matches (prevents ghost deletes from cleanup above)
+      db.prepare(
+        'DELETE FROM event_rsvps WHERE operation_id = ? AND discord_user_id = ? AND status = ?'
+      ).run(op.id, user.id, status);
+    }
+  }
+
+  client.on('messageReactionAdd',    (reaction, user) => handleRsvpReaction(reaction, user, true).catch(() => {}));
+  client.on('messageReactionRemove', (reaction, user) => handleRsvpReaction(reaction, user, false).catch(() => {}));
 
   client.once('ready', () => {
     console.log(`[PERSCOM] Discord bot online as ${client.user.tag}`);
