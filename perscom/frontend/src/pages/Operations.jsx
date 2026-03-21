@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Edit2, Trash2, Loader2, Calendar, CheckCircle, Radio,
-  Image, X, Users, ChevronDown, ChevronUp, UserCheck, UserMinus,
+  Image, X, Users, ChevronDown, ChevronUp, UserCheck, UserMinus, Clock,
 } from 'lucide-react';
 import { format, isPast, parseISO } from 'date-fns';
 import api from '../utils/api';
@@ -14,7 +14,7 @@ function opStatus(op) {
   return isPast(parseISO(op.end_date)) ? 'COMPLETED' : 'ACTIVE';
 }
 
-const BLANK = { title: '', description: '', start_date: '', end_date: '', type: 'Operation' };
+const BLANK = { title: '', description: '', start_date: '', start_time: '', end_date: '', type: 'Operation' };
 
 function OpForm({ initial = BLANK, onSave, onCancel, saving }) {
   const [form, setForm] = useState(initial);
@@ -68,6 +68,10 @@ function OpForm({ initial = BLANK, onSave, onCancel, saving }) {
         <div>
           <label className="label">Start Date *</label>
           <input type="date" className="input-field" value={form.start_date} onChange={(e) => set('start_date', e.target.value)} required />
+        </div>
+        <div>
+          <label className="label">Start Time <span className="text-[#1a2f55]">(UTC, optional)</span></label>
+          <input type="time" className="input-field" value={form.start_time} onChange={(e) => set('start_time', e.target.value)} />
         </div>
         <div>
           <label className="label">End Date</label>
@@ -166,6 +170,32 @@ function OpImageSection({ op, onImageUpdate }) {
         </button>
       ) : null}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+    </div>
+  );
+}
+
+function RsvpBar({ op }) {
+  const attending    = op.rsvp_attending    ?? 0;
+  const tentative    = op.rsvp_tentative    ?? 0;
+  const notAttending = op.rsvp_not_attending ?? 0;
+  const total = attending + tentative + notAttending;
+  if (total === 0 && opStatus(op) !== 'ACTIVE') return null;
+
+  return (
+    <div className="flex items-center gap-3 mt-2 text-[10px] font-mono">
+      <span className="text-[#1a2f55]">RSVP</span>
+      <span className="flex items-center gap-1 text-emerald-400">
+        ✅ <span>{attending}</span>
+      </span>
+      <span className="flex items-center gap-1 text-amber-400">
+        🟡 <span>{tentative}</span>
+      </span>
+      <span className="flex items-center gap-1 text-red-400">
+        ❌ <span>{notAttending}</span>
+      </span>
+      {total > 0 && (
+        <span className="text-[#1a2f55]">· {total} responded</span>
+      )}
     </div>
   );
 }
@@ -499,9 +529,15 @@ export default function Operations() {
                         <Calendar size={10} />
                         <span>{format(parseISO(op.start_date), 'MMM dd, yyyy')}</span>
                       </div>
+                      {op.start_time && (
+                        <div className="flex items-center gap-1.5 text-[#3b82f6]/70">
+                          <Clock size={10} />
+                          <span>{op.start_time} UTC</span>
+                        </div>
+                      )}
                       {op.end_date ? (
                         <div className="flex items-center gap-1.5">
-                          <Calendar size={10} />
+                          <span className="text-[#1a2f55]">→</span>
                           <span>{format(parseISO(op.end_date), 'MMM dd, yyyy')}</span>
                         </div>
                       ) : (
@@ -510,6 +546,7 @@ export default function Operations() {
                       <span>— {op.created_by_name}</span>
                     </div>
 
+                    <RsvpBar op={op} />
                     <OpImageSection op={op} onImageUpdate={handleImageUpdate} />
                     <AttendancePanel op={op} />
                   </div>
@@ -551,6 +588,7 @@ export default function Operations() {
               title: selected.title,
               description: selected.description || '',
               start_date: selected.start_date,
+              start_time: selected.start_time || '',
               end_date: selected.end_date || '',
               type: selected.type || 'Operation',
             }}

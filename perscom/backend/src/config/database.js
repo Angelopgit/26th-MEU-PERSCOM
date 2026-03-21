@@ -310,6 +310,9 @@ function initializeDatabase() {
   // Discord event message tracking
   try { database.exec('ALTER TABLE operations ADD COLUMN discord_message_id TEXT'); } catch {}
 
+  // Start time for operations/trainings
+  try { database.exec('ALTER TABLE operations ADD COLUMN start_time TEXT'); } catch {}
+
   // Event RSVP table
   database.exec(`
     CREATE TABLE IF NOT EXISTS event_rsvps (

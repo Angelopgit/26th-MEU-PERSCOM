@@ -22,16 +22,19 @@ function getOpWithCreator(db, id) {
 router.get('/', authenticate, (req, res) => {
   const db = getDb();
   const operations = db.prepare(`
-    SELECT o.*, u.display_name as created_by_name
+    SELECT o.*, u.display_name as created_by_name,
+      (SELECT COUNT(*) FROM event_rsvps WHERE operation_id = o.id AND status = 'attending')     as rsvp_attending,
+      (SELECT COUNT(*) FROM event_rsvps WHERE operation_id = o.id AND status = 'tentative')     as rsvp_tentative,
+      (SELECT COUNT(*) FROM event_rsvps WHERE operation_id = o.id AND status = 'not_attending') as rsvp_not_attending
     FROM operations o
     JOIN users u ON o.created_by = u.id
-    ORDER BY o.start_date DESC
+    ORDER BY o.start_date ASC
   `).all();
   res.json(operations);
 });
 
 router.post('/', authenticate, requireAdmin, (req, res) => {
-  const { title, description, start_date, end_date, type } = req.body;
+  const { title, description, start_date, start_time, end_date, type } = req.body;
   if (!title || !start_date) {
     return res.status(400).json({ error: 'Title and start date are required' });
   }
@@ -39,8 +42,8 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   const opType = ['Operation', 'Training'].includes(type) ? type : 'Operation';
   const db = getDb();
   const result = db.prepare(
-    'INSERT INTO operations (title, description, start_date, end_date, created_by, type) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(title.trim(), description || null, start_date, end_date || null, req.user.id, opType);
+    'INSERT INTO operations (title, description, start_date, start_time, end_date, created_by, type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(title.trim(), description || null, start_date, start_time || null, end_date || null, req.user.id, opType);
 
   logActivity('OPERATION_CREATED', `${opType}: ${title}`, req.user.id);
 
@@ -57,7 +60,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
 });
 
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
-  const { title, description, start_date, end_date, type } = req.body;
+  const { title, description, start_date, start_time, end_date, type } = req.body;
   const db = getDb();
 
   const op = db.prepare('SELECT * FROM operations WHERE id = ?').get(req.params.id);
@@ -66,11 +69,12 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   const opType = ['Operation', 'Training'].includes(type) ? type : (op.type || 'Operation');
 
   db.prepare(
-    'UPDATE operations SET title = ?, description = ?, start_date = ?, end_date = ?, type = ? WHERE id = ?'
+    'UPDATE operations SET title = ?, description = ?, start_date = ?, start_time = ?, end_date = ?, type = ? WHERE id = ?'
   ).run(
     title || op.title,
     description !== undefined ? description : op.description,
     start_date || op.start_date,
+    start_time !== undefined ? (start_time || null) : op.start_time,
     end_date !== undefined ? end_date : op.end_date,
     opType,
     req.params.id

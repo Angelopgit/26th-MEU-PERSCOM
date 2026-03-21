@@ -171,6 +171,20 @@ async function announceStatusChange(discordUserId, marineName, oldStatus, newSta
   });
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Build a Unix timestamp from a date string (YYYY-MM-DD) and optional time
+ * string (HH:MM). Treated as UTC so Discord renders it in each viewer's
+ * local timezone via <t:UNIX:F>.
+ */
+function toUnixTimestamp(dateStr, timeStr) {
+  if (!dateStr) return null;
+  const iso = timeStr ? `${dateStr}T${timeStr}:00Z` : `${dateStr}T00:00:00Z`;
+  const ms = Date.parse(iso);
+  return isNaN(ms) ? null : Math.floor(ms / 1000);
+}
+
 // ── Event Announcement (RSVP) ─────────────────────────────────────────────────
 // Posts to the dedicated events channel and adds RSVP reactions.
 // Returns the Discord message ID so it can be stored on the operation record.
@@ -185,18 +199,33 @@ async function announceEvent(operation) {
   const color = isTraining ? 0xf59e0b : 0x3b82f6;
   const typeLabel = isTraining ? '🎯 TRAINING' : '⚔️ OPERATION';
 
+  // Build Discord local-time timestamps
+  const startUnix = toUnixTimestamp(operation.start_date, operation.start_time);
+  const endUnix   = toUnixTimestamp(operation.end_date,   operation.start_time); // end has no time
+
+  const startValue = startUnix
+    ? `<t:${startUnix}:F>\n<t:${startUnix}:R>`
+    : operation.start_date;
+
   const fields = [
-    { name: 'Type',       value: typeLabel,               inline: true },
-    { name: 'Start Date', value: operation.start_date,    inline: true },
+    { name: 'Type',  value: typeLabel,   inline: true },
+    { name: 'Start', value: startValue,  inline: true },
   ];
+
   if (operation.end_date) {
-    fields.push({ name: 'End Date', value: operation.end_date, inline: true });
+    const endValue = endUnix ? `<t:${endUnix}:D>` : operation.end_date;
+    fields.push({ name: 'End', value: endValue, inline: true });
   }
-  fields.push({ name: '\u200b', value: '**React below to RSVP:**\n✅ Attending  🟡 Tentative  ❌ Not Attending', inline: false });
+
+  fields.push({
+    name: '\u200b',
+    value: '**React below to RSVP:**\n✅ Attending  🟡 Tentative  ❌ Not Attending',
+    inline: false,
+  });
 
   const embed = new EmbedBuilder()
     .setColor(color)
-    .setAuthor({ name: `📋 NEW EVENT — 26th MEU (SOC)` })
+    .setAuthor({ name: '📋 NEW EVENT — 26th MEU (SOC)' })
     .setTitle(operation.title)
     .addFields(...fields)
     .setFooter({ text: 'PERSCOM — 26th MEU (SOC)' })
