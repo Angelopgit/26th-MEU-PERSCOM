@@ -430,7 +430,7 @@ export default function Operations() {
           {/* Status filter — Upcoming / Completed, mutually exclusive */}
           <div className="flex gap-1 flex-wrap items-center">
             {[
-              { key: 'Upcoming',  label: `Upcoming`,  count: upcomingCount  },
+              { key: 'Upcoming',  label: `Active`,     count: upcomingCount  },
               { key: 'Completed', label: `Completed`, count: completedCount },
             ].map(({ key, label, count }) => (
               <button

@@ -213,9 +213,65 @@ function DeleteModal({ person, onConfirm, onCancel, deleting }) {
   );
 }
 
+function LoaModal({ onClose, onSubmit, saving, initial = null }) {
+  const today = new Date().toISOString().split('T')[0];
+  const [form, setForm] = useState({
+    loa_start_date: initial?.loa_start_date || today,
+    loa_end_date:   initial?.loa_end_date   || '',
+    loa_reason:     initial?.loa_reason     || '',
+  });
+
+  return (
+    <Modal title={initial ? 'Update Leave of Absence' : 'Set Leave of Absence'} onClose={onClose} maxWidth="max-w-sm">
+      <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Start Date</label>
+            <input
+              type="date"
+              className="input-field"
+              value={form.loa_start_date}
+              onChange={(e) => setForm((f) => ({ ...f, loa_start_date: e.target.value }))}
+              required
+            />
+          </div>
+          <div>
+            <label className="label">End Date <span className="text-[#1a2f55]">(optional)</span></label>
+            <input
+              type="date"
+              className="input-field"
+              value={form.loa_end_date}
+              min={form.loa_start_date}
+              onChange={(e) => setForm((f) => ({ ...f, loa_end_date: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="label">Description <span className="text-[#1a2f55]">(optional)</span></label>
+          <textarea
+            className="input-field resize-none"
+            rows={3}
+            placeholder="Brief reason for leave..."
+            value={form.loa_reason}
+            onChange={(e) => setForm((f) => ({ ...f, loa_reason: e.target.value }))}
+          />
+        </div>
+        <div className="flex gap-2 justify-end pt-1">
+          <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
+            {saving && <Loader2 size={13} className="animate-spin" />}
+            {initial ? 'Update LOA' : 'Confirm LOA'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function MemberStatusDropdown({ person, onChanged }) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [open, setOpen]       = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [loaModal, setLoaModal] = useState(false); // pending LOA — needs dates
   const ref = useRef(null);
 
   useEffect(() => {
@@ -224,46 +280,79 @@ function MemberStatusDropdown({ person, onChanged }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const choose = async (val) => {
-    if (val === person.member_status) { setOpen(false); return; }
+  const applyStatus = async (val, loaFields = {}) => {
     setSaving(true);
     try {
-      await api.patch(`/personnel/${person.id}/member-status`, { member_status: val });
+      await api.patch(`/personnel/${person.id}/member-status`, { member_status: val, ...loaFields });
       onChanged(person.id, val);
     } catch { alert('Failed to update status'); }
     finally { setSaving(false); setOpen(false); }
   };
 
+  const choose = (val) => {
+    if (val === person.member_status) { setOpen(false); return; }
+    setOpen(false);
+    if (val === 'Leave of Absence') {
+      setLoaModal(true); // show LOA modal to collect dates/reason
+    } else {
+      applyStatus(val);
+    }
+  };
+
+  const handleLoaSubmit = async (form) => {
+    await applyStatus('Leave of Absence', {
+      loa_start_date: form.loa_start_date || null,
+      loa_end_date:   form.loa_end_date   || null,
+      loa_reason:     form.loa_reason     || null,
+    });
+    setLoaModal(false);
+  };
+
   const badgeClass = MEMBER_STATUS_STYLES[person.member_status] || 'badge-muted';
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        disabled={saving}
-        className={`${badgeClass} cursor-pointer select-none`}
-        title="Change member status"
-      >
-        {saving ? '...' : (person.member_status || 'Active')}
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 bg-[#0c1428] border border-[#162448] rounded-sm shadow-xl z-50 min-w-[10rem] py-0.5">
-          {['Active', 'Leave of Absence', 'Inactive'].map((s) => (
-            <button
-              key={s}
-              onClick={() => choose(s)}
-              className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
-                s === person.member_status
-                  ? 'text-[#60a5fa] bg-[#3b82f6]/10'
-                  : 'text-[#4a6fa5] hover:text-[#dbeafe] hover:bg-[#162448]/50'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+    <>
+      <div className="relative" ref={ref}>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          disabled={saving}
+          className={`${badgeClass} cursor-pointer select-none`}
+          title="Change member status"
+        >
+          {saving ? '...' : (person.member_status || 'Active')}
+        </button>
+        {open && (
+          <div className="absolute left-0 top-full mt-1 bg-[#0c1428] border border-[#162448] rounded-sm shadow-xl z-50 min-w-[10rem] py-0.5">
+            {['Active', 'Leave of Absence', 'Inactive'].map((s) => (
+              <button
+                key={s}
+                onClick={() => choose(s)}
+                className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
+                  s === person.member_status
+                    ? 'text-[#60a5fa] bg-[#3b82f6]/10'
+                    : 'text-[#4a6fa5] hover:text-[#dbeafe] hover:bg-[#162448]/50'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {loaModal && (
+        <LoaModal
+          onClose={() => setLoaModal(false)}
+          onSubmit={handleLoaSubmit}
+          saving={saving}
+          initial={person.member_status === 'Leave of Absence' ? {
+            loa_start_date: person.loa_start_date || '',
+            loa_end_date:   person.loa_end_date   || '',
+            loa_reason:     person.loa_reason     || '',
+          } : null}
+        />
       )}
-    </div>
+    </>
   );
 }
 

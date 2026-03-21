@@ -54,22 +54,22 @@ const ORBAT_STRUCTURE = [
   ['role-sq1-as','sq-1',      'Asst. Squad Leader',      'role',      null,     1],
   ['role-sq1-co','sq-1',      'Corpsman',                'role',      null,     2],
 
-  // 1st Squad — 1st Fireteam
-  ['ft-1-1',     'sq-1',      '1st Fireteam',            'fireteam',  null,     3],
+  // 1st Squad — 1st Fireteam (Alpha)
+  ['ft-1-1',     'sq-1',      '1st Fireteam (Alpha)',    'fireteam',  null,     3],
   ['role-ft11-1','ft-1-1',    'Team Leader',             'role',      null,     0],
   ['role-ft11-2','ft-1-1',    'Automatic Rifleman',      'role',      null,     1],
   ['role-ft11-3','ft-1-1',    'Anti-Tank',               'role',      null,     2],
   ['role-ft11-4','ft-1-1',    'Rifleman',                'role',      null,     3],
 
-  // 1st Squad — 2nd Fireteam
-  ['ft-1-2',     'sq-1',      '2nd Fireteam',            'fireteam',  null,     4],
+  // 1st Squad — 2nd Fireteam (Bravo)
+  ['ft-1-2',     'sq-1',      '2nd Fireteam (Bravo)',    'fireteam',  null,     4],
   ['role-ft12-1','ft-1-2',    'Team Leader',             'role',      null,     0],
   ['role-ft12-2','ft-1-2',    'Automatic Rifleman',      'role',      null,     1],
   ['role-ft12-3','ft-1-2',    'Anti-Tank',               'role',      null,     2],
   ['role-ft12-4','ft-1-2',    'Rifleman',                'role',      null,     3],
 
-  // 1st Squad — 3rd Fireteam
-  ['ft-1-3',     'sq-1',      '3rd Fireteam',            'fireteam',  null,     5],
+  // 1st Squad — 3rd Fireteam (Charlie)
+  ['ft-1-3',     'sq-1',      '3rd Fireteam (Charlie)',  'fireteam',  null,     5],
   ['role-ft13-1','ft-1-3',    'Team Leader',             'role',      null,     0],
   ['role-ft13-2','ft-1-3',    'Automatic Rifleman',      'role',      null,     1],
   ['role-ft13-3','ft-1-3',    'Anti-Tank',               'role',      null,     2],
@@ -81,22 +81,22 @@ const ORBAT_STRUCTURE = [
   ['role-sq2-as','sq-2',      'Asst. Squad Leader',      'role',      null,     1],
   ['role-sq2-co','sq-2',      'Corpsman',                'role',      null,     2],
 
-  // 2nd Squad — 1st Fireteam
-  ['ft-2-1',     'sq-2',      '1st Fireteam',            'fireteam',  null,     3],
+  // 2nd Squad — 1st Fireteam (Alpha)
+  ['ft-2-1',     'sq-2',      '1st Fireteam (Alpha)',    'fireteam',  null,     3],
   ['role-ft21-1','ft-2-1',    'Team Leader',             'role',      null,     0],
   ['role-ft21-2','ft-2-1',    'Automatic Rifleman',      'role',      null,     1],
   ['role-ft21-3','ft-2-1',    'Anti-Tank',               'role',      null,     2],
   ['role-ft21-4','ft-2-1',    'Rifleman',                'role',      null,     3],
 
-  // 2nd Squad — 2nd Fireteam
-  ['ft-2-2',     'sq-2',      '2nd Fireteam',            'fireteam',  null,     4],
+  // 2nd Squad — 2nd Fireteam (Bravo)
+  ['ft-2-2',     'sq-2',      '2nd Fireteam (Bravo)',    'fireteam',  null,     4],
   ['role-ft22-1','ft-2-2',    'Team Leader',             'role',      null,     0],
   ['role-ft22-2','ft-2-2',    'Automatic Rifleman',      'role',      null,     1],
   ['role-ft22-3','ft-2-2',    'Anti-Tank',               'role',      null,     2],
   ['role-ft22-4','ft-2-2',    'Rifleman',                'role',      null,     3],
 
-  // 2nd Squad — 3rd Fireteam
-  ['ft-2-3',     'sq-2',      '3rd Fireteam',            'fireteam',  null,     5],
+  // 2nd Squad — 3rd Fireteam (Charlie)
+  ['ft-2-3',     'sq-2',      '3rd Fireteam (Charlie)',  'fireteam',  null,     5],
   ['role-ft23-1','ft-2-3',    'Team Leader',             'role',      null,     0],
   ['role-ft23-2','ft-2-3',    'Automatic Rifleman',      'role',      null,     1],
   ['role-ft23-3','ft-2-3',    'Anti-Tank',               'role',      null,     2],
@@ -312,6 +312,14 @@ function initializeDatabase() {
 
   // Start time for operations/trainings
   try { database.exec('ALTER TABLE operations ADD COLUMN start_time TEXT'); } catch {}
+
+  // Rename fireteams to include phonetic designations (Alpha/Bravo/Charlie)
+  database.prepare("UPDATE orbat_slots SET name = '1st Fireteam (Alpha)'   WHERE id = 'ft-1-1' AND name = '1st Fireteam'").run();
+  database.prepare("UPDATE orbat_slots SET name = '2nd Fireteam (Bravo)'   WHERE id = 'ft-1-2' AND name = '2nd Fireteam'").run();
+  database.prepare("UPDATE orbat_slots SET name = '3rd Fireteam (Charlie)' WHERE id = 'ft-1-3' AND name = '3rd Fireteam'").run();
+  database.prepare("UPDATE orbat_slots SET name = '1st Fireteam (Alpha)'   WHERE id = 'ft-2-1' AND name = '1st Fireteam'").run();
+  database.prepare("UPDATE orbat_slots SET name = '2nd Fireteam (Bravo)'   WHERE id = 'ft-2-2' AND name = '2nd Fireteam'").run();
+  database.prepare("UPDATE orbat_slots SET name = '3rd Fireteam (Charlie)' WHERE id = 'ft-2-3' AND name = '3rd Fireteam'").run();
 
   // Event RSVP table
   database.exec(`
