@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search, Plus, ChevronUp, ChevronDown, Award, Trash2,
-  Edit2, Star, Loader2, X, UserPlus,
+  Edit2, Star, Loader2, X, UserPlus, Clock, AlertTriangle,
 } from 'lucide-react';
-import { differenceInDays, format } from 'date-fns';
+import { differenceInDays, format, parseISO } from 'date-fns';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
@@ -367,6 +367,8 @@ export default function Personnel() {
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const [loaList, setLoaList] = useState([]);
+
   const [hoverPerson, setHoverPerson] = useState(null);
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
   const [hoverVisible, setHoverVisible] = useState(false);
@@ -387,10 +389,19 @@ export default function Personnel() {
     }
   }, [search, filter]);
 
+  const fetchLoa = useCallback(async () => {
+    try {
+      const r = await api.get('/personnel');
+      setLoaList(r.data.filter((p) => p.member_status === 'Leave of Absence'));
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const id = setTimeout(fetchPersonnel, search ? 300 : 0);
     return () => clearTimeout(id);
   }, [fetchPersonnel, search]);
+
+  useEffect(() => { fetchLoa(); }, [fetchLoa]);
 
   const closeModal = () => { setModal(null); setSelected(null); };
 
@@ -444,6 +455,7 @@ export default function Personnel() {
     setPersonnel((prev) =>
       prev.map((p) => p.id === id ? { ...p, member_status: newStatus } : p)
     );
+    fetchLoa();
   };
 
   const showHover = (person, e) => {
@@ -635,6 +647,58 @@ export default function Personnel() {
       </div>
 
       <MarineHoverCard person={hoverPerson} x={hoverPos.x} y={hoverPos.y} visible={hoverVisible} />
+
+      {/* ── Leave of Absence ── */}
+      <div className="space-y-2 pt-2">
+        <div className="flex items-center gap-2">
+          <Clock size={13} className="text-amber-400" />
+          <span className="section-header text-sm">Leave of Absence</span>
+          {loaList.length > 0 && (
+            <span className="bg-amber-900/40 text-amber-400 text-[9px] font-mono px-1.5 py-0.5 rounded-sm border border-amber-900/40">
+              {loaList.length}
+            </span>
+          )}
+        </div>
+        {loaList.length === 0 ? (
+          <div className="card py-8 text-center">
+            <AlertTriangle size={20} className="text-[#162448] mx-auto mb-2" />
+            <div className="text-[#1a2f55] font-mono text-xs">NO PERSONNEL CURRENTLY ON LOA</div>
+          </div>
+        ) : (
+          <div className="card overflow-hidden">
+            <div className="flex items-center gap-4 px-4 py-2.5 border-b border-[#162448] bg-[#060918]">
+              <div className="flex-1 section-header">Name / Rank</div>
+              <div className="w-28 section-header hidden sm:block">LOA Start</div>
+              <div className="w-28 section-header hidden sm:block">LOA End</div>
+              <div className="flex-1 section-header hidden md:block">Reason</div>
+            </div>
+            {loaList.map((p) => (
+              <div key={p.id} className="flex items-center gap-4 px-4 py-3 border-b border-[#162448]/40 last:border-0 hover:bg-[#0f1c35]/40 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <Link
+                    to={`/personnel/${p.id}`}
+                    className="text-[#dbeafe] text-sm font-medium hover:text-[#60a5fa] transition-colors"
+                  >
+                    {p.name}
+                  </Link>
+                  <div className="text-[#4a6fa5] text-xs font-mono mt-0.5">
+                    {p.status === 'Marine' ? (RANK_ABBREV[p.rank] || p.rank || '—') : 'CIV'}
+                  </div>
+                </div>
+                <div className="w-28 hidden sm:block text-[#4a6fa5] text-xs font-mono">
+                  {p.loa_start_date ? format(parseISO(p.loa_start_date), 'MMM dd, yyyy') : '—'}
+                </div>
+                <div className="w-28 hidden sm:block text-[#4a6fa5] text-xs font-mono">
+                  {p.loa_end_date ? format(parseISO(p.loa_end_date), 'MMM dd, yyyy') : '—'}
+                </div>
+                <div className="flex-1 hidden md:block text-[#4a6fa5] text-xs font-mono truncate">
+                  {p.loa_reason || '—'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {modal === 'add' && (
         <Modal title="Add Personnel" onClose={closeModal}>

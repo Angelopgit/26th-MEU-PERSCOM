@@ -148,9 +148,19 @@ function AssignModal({ slot, personnel, onAssign, onUnassign, onClose, saving })
 
 // ── Fireteam block ─────────────────────────────────────────────────────────────
 function FireteamBlock({ label, slots, onSlotClick, baseDelay, readOnly = false }) {
+  const csMatch = label.match(/\(([^)]+)\)/);
+  const callsign = csMatch ? csMatch[1] : null;
+  const baseName = callsign ? label.replace(/\s*\([^)]+\)/, '') : label;
   return (
     <div className="border border-[#162448]/60 rounded-sm p-2 bg-[#060918]/40">
-      <div className="text-[10px] font-mono text-[#2a4a80] mb-1.5 tracking-wider">{label}</div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span className="text-[10px] font-mono text-[#2a4a80] tracking-wider">{baseName}</span>
+        {callsign && (
+          <span className="text-[10px] font-mono text-[#3b82f6] bg-[#3b82f6]/10 border border-[#3b82f6]/25 px-1.5 py-0.5 rounded-sm">
+            {callsign}
+          </span>
+        )}
+      </div>
       <div className="space-y-1">
         {slots.map((s, i) => (
           <SlotCard key={s.id} slot={s} onClick={onSlotClick} animDelay={baseDelay + i * 25} readOnly={readOnly} />

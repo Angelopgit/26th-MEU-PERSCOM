@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileText, Package, Clock, Plus, Edit2, Trash2, Loader2,
-  Bold, Italic, X, ChevronDown, ChevronUp, AlertTriangle, Image,
+  FileText, Package, Plus, Edit2, Trash2, Loader2,
+  Bold, Italic, X, ChevronDown, ChevronUp, Image,
   FileDown, Maximize2,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
@@ -579,22 +578,10 @@ function LoadoutCard({ loadout, isAdmin, onDelete, onAddItem, onDeleteItem }) {
   );
 }
 
-// ── LOA row ───────────────────────────────────────────────────────────────────
-const RANK_ABBREV = {
-  'Recruit': 'Rct', 'Private': 'Pvt', 'Private First Class': 'PFC',
-  'Lance Corporal': 'LCpl', 'Corporal': 'Cpl', 'Sergeant': 'Sgt',
-  'Staff Sergeant': 'SSgt', 'Gunnery Sergeant': 'GySgt',
-  'Master Sergeant': 'MSgt', 'First Sergeant': '1stSgt',
-  'Master Gunnery Sergeant': 'MGySgt', 'Sergeant Major': 'SgtMaj',
-  'Second Lieutenant': '2ndLt', 'First Lieutenant': '1stLt',
-  'Captain': 'Capt', 'Major': 'Maj', 'Lieutenant Colonel': 'LtCol', 'Colonel': 'Col',
-};
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'documents',  label: 'Documents',       icon: FileText },
-  { id: 'loadouts',   label: 'Gear Loadouts',   icon: Package  },
-  { id: 'loa',        label: 'Leave of Absence',icon: Clock    },
+  { id: 'documents',  label: 'Documents',     icon: FileText },
+  { id: 'loadouts',   label: 'Gear Loadouts', icon: Package  },
 ];
 
 export default function Documents() {
@@ -615,9 +602,6 @@ export default function Documents() {
   const [newLoadoutDesc, setNewLoadoutDesc] = useState('');
   const [loadoutSaving, setLoadoutSaving] = useState(false);
 
-  const [loaList, setLoaList]     = useState([]);
-  const [loaLoading, setLoaLoading] = useState(true);
-
   const fetchDocs = useCallback(async () => {
     setDocsLoading(true);
     try { const r = await api.get('/documents'); setDocs(r.data); }
@@ -630,17 +614,8 @@ export default function Documents() {
     catch {} finally { setLoadoutsLoading(false); }
   }, []);
 
-  const fetchLoa = useCallback(async () => {
-    setLoaLoading(true);
-    try {
-      const r = await api.get('/personnel');
-      setLoaList(r.data.filter((p) => p.member_status === 'Leave of Absence'));
-    } catch {} finally { setLoaLoading(false); }
-  }, []);
-
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
   useEffect(() => { fetchLoadouts(); }, [fetchLoadouts]);
-  useEffect(() => { fetchLoa(); }, [fetchLoa]);
 
   const handleSaveDoc = async ({ title, content }) => {
     setDocSaving(true);
@@ -731,11 +706,6 @@ export default function Documents() {
           >
             <Icon size={12} />
             {label}
-            {id === 'loa' && loaList.length > 0 && (
-              <span className="bg-amber-900/40 text-amber-400 text-[9px] font-mono px-1.5 py-0.5 rounded-sm border border-amber-900/40">
-                {loaList.length}
-              </span>
-            )}
           </button>
         ))}
       </div>
@@ -836,57 +806,6 @@ export default function Documents() {
                   onAddItem={handleAddItem}
                   onDeleteItem={handleDeleteItem}
                 />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'loa' && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs font-mono text-[#1a2f55]">
-            <AlertTriangle size={11} className="text-amber-400" />
-            <span>Marines currently on Leave of Absence</span>
-            <span className="ml-auto text-[#4a6fa5]">{loaList.length} personnel</span>
-          </div>
-          {loaLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={18} className="animate-spin text-[#3b82f6]" />
-            </div>
-          ) : loaList.length === 0 ? (
-            <div className="card py-12 text-center">
-              <Clock size={24} className="text-[#162448] mx-auto mb-2" />
-              <div className="text-[#1a2f55] font-mono text-xs">NO PERSONNEL CURRENTLY ON LOA</div>
-            </div>
-          ) : (
-            <div className="card overflow-hidden">
-              <div className="flex items-center gap-4 px-4 py-2.5 border-b border-[#162448] bg-[#060918]">
-                <div className="flex-1 section-header">Name / Rank</div>
-                <div className="w-32 section-header hidden sm:block">Date of Entry</div>
-                <div className="w-28 section-header">Status</div>
-              </div>
-              {loaList.map((p) => (
-                <div key={p.id} className="flex items-center gap-4 px-4 py-3 border-b border-[#162448]/40 last:border-0 hover:bg-[#0f1c35]/40 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <Link
-                      to={`/personnel/${p.id}`}
-                      className="text-[#dbeafe] text-sm font-medium hover:text-[#60a5fa] transition-colors"
-                    >
-                      {p.name}
-                    </Link>
-                    <div className="text-[#4a6fa5] text-xs font-mono mt-0.5">
-                      {p.status === 'Marine' ? (RANK_ABBREV[p.rank] || p.rank || '—') : 'CIV'}
-                    </div>
-                  </div>
-                  <div className="w-32 hidden sm:block text-[#4a6fa5] text-xs font-mono">
-                    {p.date_of_entry ? format(parseISO(p.date_of_entry), 'MMM dd, yyyy') : '—'}
-                  </div>
-                  <div className="w-28">
-                    <span className="badge bg-amber-900/20 text-amber-400 border border-amber-900/30 font-mono text-[10px]">
-                      On Leave
-                    </span>
-                  </div>
-                </div>
               ))}
             </div>
           )}
