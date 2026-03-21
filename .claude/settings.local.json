@@ -5,7 +5,11 @@
       "Bash(node src/db/seed.js)",
       "Bash(node --no-warnings src/db/seed.js)",
       "Bash(npm install multer@1.4.5-lts.1 --save)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(npm run:*)",
+      "Bash(chmod +x /Users/angelosmac/26th-MEU-PERSCOM/perscom/frontend/node_modules/.bin/vite)",
+      "Bash(rm -rf node_modules package-lock.json)",
+      "Bash(npm install:*)"
     ]
   }
 }
