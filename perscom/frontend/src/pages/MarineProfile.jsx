@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Star, Shield, Clock, Calendar, Award,
   CheckSquare, Loader2, Plus, X, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Target, TrendingUp, CalendarClock,
+  CheckCircle2, AlertTriangle, Target, TrendingUp, CalendarClock, Edit2,
 } from 'lucide-react';
 import { differenceInDays, format, formatDistanceToNow } from 'date-fns';
 import api from '../utils/api';
@@ -193,9 +193,15 @@ function RankProgressionBar({ person, ranks, attendance }) {
 }
 
 // ── LOA Modal ─────────────────────────────────────────────────────────────────
-function LoaModal({ onClose, onSubmit, saving }) {
+function LoaModal({ onClose, onSubmit, saving, initial = null }) {
   const today = new Date().toISOString().split('T')[0];
-  const [form, setForm] = useState({ loa_start_date: today, loa_end_date: '', loa_reason: '' });
+  const [form, setForm] = useState({
+    loa_start_date: initial?.loa_start_date || today,
+    loa_end_date:   initial?.loa_end_date   || '',
+    loa_reason:     initial?.loa_reason     || '',
+  });
+
+  const isEditing = !!initial;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -203,7 +209,7 @@ function LoaModal({ onClose, onSubmit, saving }) {
   };
 
   return (
-    <Modal title="Set Leave of Absence" onClose={onClose} maxWidth="max-w-sm">
+    <Modal title={isEditing ? 'Update Leave of Absence' : 'Set Leave of Absence'} onClose={onClose} maxWidth="max-w-sm">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -228,7 +234,7 @@ function LoaModal({ onClose, onSubmit, saving }) {
           </div>
         </div>
         <div>
-          <label className="label">Reason <span className="text-[#1a2f55]">(optional)</span></label>
+          <label className="label">Description <span className="text-[#1a2f55]">(optional)</span></label>
           <textarea
             className="input-field resize-none"
             rows={3}
@@ -241,7 +247,7 @@ function LoaModal({ onClose, onSubmit, saving }) {
           <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
           <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
             {saving && <Loader2 size={13} className="animate-spin" />}
-            Confirm LOA
+            {isEditing ? 'Update LOA' : 'Confirm LOA'}
           </button>
         </div>
       </form>
@@ -449,14 +455,24 @@ export default function MarineProfile() {
           {/* LOA toggle — visible to self and staff */}
           {canChangeLoa && (
             memberStatus === 'Leave of Absence' ? (
-              <button
-                onClick={() => handleSetLoa('Active')}
-                disabled={settingLoa}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border border-amber-900/50 text-amber-400 hover:bg-amber-950/30 transition-colors rounded-sm disabled:opacity-40"
-              >
-                {settingLoa ? <Loader2 size={10} className="animate-spin" /> : null}
-                RETURN FROM LOA
-              </button>
+              <>
+                <button
+                  onClick={() => setShowLoaModal(true)}
+                  disabled={settingLoa}
+                  title="Edit LOA details"
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border border-amber-900/30 text-amber-400/70 hover:text-amber-400 hover:border-amber-900/60 transition-colors rounded-sm disabled:opacity-40"
+                >
+                  <Edit2 size={10} /> EDIT LOA
+                </button>
+                <button
+                  onClick={() => handleSetLoa('Active')}
+                  disabled={settingLoa}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border border-amber-900/50 text-amber-400 hover:bg-amber-950/30 transition-colors rounded-sm disabled:opacity-40"
+                >
+                  {settingLoa ? <Loader2 size={10} className="animate-spin" /> : null}
+                  RETURN FROM LOA
+                </button>
+              </>
             ) : memberStatus === 'Active' ? (
               <button
                 onClick={() => setShowLoaModal(true)}
@@ -801,6 +817,11 @@ export default function MarineProfile() {
           onClose={() => setShowLoaModal(false)}
           onSubmit={handleLoaSubmit}
           saving={settingLoa}
+          initial={memberStatus === 'Leave of Absence' ? {
+            loa_start_date: person.loa_start_date || '',
+            loa_end_date:   person.loa_end_date   || '',
+            loa_reason:     person.loa_reason     || '',
+          } : null}
         />
       )}
     </div>
