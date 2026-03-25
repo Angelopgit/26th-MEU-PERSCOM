@@ -9,6 +9,33 @@ import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
 
+/**
+ * Given a date string (YYYY-MM-DD) and time string (HH:MM) stored in Eastern
+ * Time, returns the equivalent time in the viewer's browser-local timezone.
+ * Returns null if either param is missing.
+ */
+function etTimeToLocal(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  try {
+    const naiveMs = Date.parse(`${dateStr}T${timeStr}:00Z`);
+    if (isNaN(naiveMs)) return null;
+    const naiveDate = new Date(naiveMs);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(naiveDate);
+    const p = {};
+    parts.forEach(x => { p[x.type] = x.value; });
+    const etAsUtcMs = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+    const actualDate = new Date(naiveMs + (naiveMs - etAsUtcMs));
+    return actualDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return timeStr;
+  }
+}
+
 function opStatus(op) {
   if (!op.end_date) return 'ACTIVE';
   return isPast(parseISO(op.end_date)) ? 'COMPLETED' : 'ACTIVE';
@@ -70,7 +97,7 @@ function OpForm({ initial = BLANK, onSave, onCancel, saving }) {
           <input type="date" className="input-field" value={form.start_date} onChange={(e) => set('start_date', e.target.value)} required />
         </div>
         <div>
-          <label className="label">Start Time <span className="text-[#1a2f55]">(UTC, optional)</span></label>
+          <label className="label">Start Time <span className="text-[#1a2f55]">(Eastern Time, optional)</span></label>
           <input type="time" className="input-field" value={form.start_time} onChange={(e) => set('start_time', e.target.value)} />
         </div>
         <div>
@@ -529,12 +556,16 @@ export default function Operations() {
                         <Calendar size={10} />
                         <span>{format(parseISO(op.start_date), 'MMM dd, yyyy')}</span>
                       </div>
-                      {op.start_time && (
-                        <div className="flex items-center gap-1.5 text-[#3b82f6]/70">
-                          <Clock size={10} />
-                          <span>{op.start_time} UTC</span>
-                        </div>
-                      )}
+                      {op.start_time && (() => {
+                        const local = etTimeToLocal(op.start_date, op.start_time);
+                        return (
+                          <div className="flex items-center gap-1.5 text-[#3b82f6]/70">
+                            <Clock size={10} />
+                            <span>{local || op.start_time}</span>
+                            <span className="text-[#1a2f55] text-[9px] font-mono">({op.start_time} ET)</span>
+                          </div>
+                        );
+                      })()}
                       {op.end_date ? (
                         <div className="flex items-center gap-1.5">
                           <span className="text-[#1a2f55]">→</span>

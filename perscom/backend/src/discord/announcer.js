@@ -175,14 +175,30 @@ async function announceStatusChange(discordUserId, marineName, oldStatus, newSta
 
 /**
  * Build a Unix timestamp from a date string (YYYY-MM-DD) and optional time
- * string (HH:MM). Treated as UTC so Discord renders it in each viewer's
- * local timezone via <t:UNIX:F>.
+ * string (HH:MM) that is entered in Eastern Time (America/New_York).
+ * Handles EST (UTC-5) and EDT (UTC-4) automatically so that Discord's
+ * <t:UNIX:F> renders the correct moment in each viewer's local timezone.
  */
 function toUnixTimestamp(dateStr, timeStr) {
   if (!dateStr) return null;
-  const iso = timeStr ? `${dateStr}T${timeStr}:00Z` : `${dateStr}T00:00:00Z`;
-  const ms = Date.parse(iso);
-  return isNaN(ms) ? null : Math.floor(ms / 1000);
+  const time = timeStr || '00:00';
+  // Step 1: parse the naive date+time as if it were UTC
+  const naiveMs = Date.parse(`${dateStr}T${time}:00Z`);
+  if (isNaN(naiveMs)) return null;
+  const naiveDate = new Date(naiveMs);
+  // Step 2: find what Eastern Time shows for that UTC moment (determines offset)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(naiveDate);
+  const p = {};
+  parts.forEach(x => { p[x.type] = x.value; });
+  const etAsUtcMs = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+  // Step 3: the difference is the ET offset; apply it to get true UTC for the ET input
+  const offsetMs = naiveMs - etAsUtcMs;
+  return Math.floor((naiveMs + offsetMs) / 1000);
 }
 
 // ── Event Announcement (RSVP) ─────────────────────────────────────────────────
