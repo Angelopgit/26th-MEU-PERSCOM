@@ -157,6 +157,67 @@ router.post('/', (req, res) => {
   }
 });
 
+// ── POST /api/applications/staff-test (staff only) ───────────────────────────
+// Bypasses all Discord role/cooldown checks so staff can test the full flow.
+router.post('/staff-test', authenticate, requireStaff, (req, res) => {
+  const {
+    discord_id,
+    discord_username,
+    discord_avatar,
+    first_name,
+    last_name,
+    age,
+    platform,
+    desired_role,
+    referred_by,
+    reforger_experience,
+    other_unit,
+    other_unit_conflict,
+    how_heard,
+    why_join,
+    long_term_commitment,
+    na_timezone,
+  } = req.body;
+
+  if (!discord_id || !first_name || !last_name) {
+    return res.status(400).json({ error: 'discord_id, first_name, and last_name are required' });
+  }
+
+  try {
+    const db = getDb();
+    const result = db.prepare(`
+      INSERT INTO applications (
+        discord_id, discord_username, discord_avatar,
+        first_name, last_name, age, platform,
+        desired_role, referred_by, reforger_experience,
+        other_unit, other_unit_conflict, how_heard, why_join,
+        long_term_commitment, na_timezone, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    `).run(
+      discord_id,
+      discord_username || '',
+      discord_avatar || null,
+      first_name,
+      last_name,
+      age || 0,
+      platform || 'PC',
+      desired_role || 'Rifleman',
+      referred_by || null,
+      reforger_experience || '',
+      other_unit || null,
+      other_unit_conflict || null,
+      how_heard || 'Staff Test',
+      why_join || 'Staff test submission.',
+      long_term_commitment ? 1 : 0,
+      na_timezone ? 1 : 0,
+    );
+    return res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    console.error('[APPLICATIONS] staff-test error:', err.message);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── GET /api/applications (staff only) ───────────────────────────────────────
 // Returns all applications, optionally filtered by status.
 router.get('/', authenticate, requireStaff, (req, res) => {

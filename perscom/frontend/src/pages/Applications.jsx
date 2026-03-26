@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Eye, CheckCircle2, XCircle, Flag,
-  Loader2, AlertCircle, ChevronDown, X, User,
+  Loader2, AlertCircle, ChevronDown, X, User, FlaskConical,
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -254,6 +254,140 @@ function AppModal({ app, onClose, onReview }) {
   );
 }
 
+// ── Staff Test Application Modal ──────────────────────────────────────────────
+const TEST_BLANK = {
+  discord_id: '', discord_username: '', first_name: '', last_name: '',
+  age: '', platform: 'PC', desired_role: '', referred_by: '',
+  reforger_experience: '', other_unit: '', other_unit_conflict: '',
+  how_heard: '', why_join: '', long_term_commitment: true, na_timezone: true,
+};
+
+function TestAppModal({ onClose, onSubmitted }) {
+  const [form, setForm] = useState(TEST_BLANK);
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.post('/applications/staff-test', form);
+      onSubmitted(res.data.id);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to submit test application.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = 'w-full bg-[#060918] border border-[#162448] focus:border-[#3b82f6]/50 rounded-sm px-3 py-2 text-[#dbeafe] text-sm font-mono outline-none transition-colors placeholder-[#1a2f55]';
+  const lbl = 'block text-[#4a6fa5] font-mono text-[10px] tracking-widest uppercase mb-1';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#090f1e] border border-[#1e3364] rounded-sm w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#162448]">
+          <div className="flex items-center gap-2">
+            <FlaskConical size={14} className="text-amber-400" />
+            <span className="text-[#dbeafe] font-mono text-sm font-bold tracking-wide">STAFF TEST APPLICATION</span>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-[#2a4a80] hover:text-[#dbeafe] transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="px-5 py-3 bg-amber-950/20 border-b border-amber-900/30 flex items-start gap-2">
+          <AlertCircle size={12} className="text-amber-400 shrink-0 mt-0.5" />
+          <span className="text-amber-400 font-mono text-[10px]">
+            Bypasses Discord role and cooldown checks. Use to test the full approval/rejection flow.
+          </span>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>Discord ID *</label>
+              <input className={inp} placeholder="e.g. 123456789" value={form.discord_id}
+                onChange={e => set('discord_id', e.target.value)} required />
+            </div>
+            <div>
+              <label className={lbl}>Discord Username</label>
+              <input className={inp} placeholder="e.g. angelo" value={form.discord_username}
+                onChange={e => set('discord_username', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>First Name * <span className="normal-case text-[#1a2f55]">(Marine Name)</span></label>
+              <input className={inp} placeholder="First" value={form.first_name}
+                onChange={e => set('first_name', e.target.value)} required />
+            </div>
+            <div>
+              <label className={lbl}>Last Name * <span className="normal-case text-[#1a2f55]">(Marine Name)</span></label>
+              <input className={inp} placeholder="Last" value={form.last_name}
+                onChange={e => set('last_name', e.target.value)} required />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={lbl}>Age</label>
+              <input type="number" className={inp} min={16} placeholder="18" value={form.age}
+                onChange={e => set('age', e.target.value)} />
+            </div>
+            <div>
+              <label className={lbl}>Platform</label>
+              <select className={inp} value={form.platform} onChange={e => set('platform', e.target.value)}>
+                {['PC', 'Xbox', 'PS5'].map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Desired Role</label>
+              <input className={inp} placeholder="Rifleman" value={form.desired_role}
+                onChange={e => set('desired_role', e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>How did you hear about us?</label>
+            <input className={inp} placeholder="Staff Test" value={form.how_heard}
+              onChange={e => set('how_heard', e.target.value)} />
+          </div>
+
+          <div>
+            <label className={lbl}>Why do you want to join?</label>
+            <textarea className={`${inp} resize-none`} rows={2} placeholder="Test submission."
+              value={form.why_join} onChange={e => set('why_join', e.target.value)} />
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 text-xs bg-red-950/30 border border-red-900/40 px-3 py-2 rounded-sm">
+              <AlertCircle size={12} className="shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-1">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-[#162448] text-[#4a6fa5] hover:text-[#dbeafe] font-mono text-xs rounded-sm transition-all">
+              CANCEL
+            </button>
+            <button type="submit" disabled={saving || !form.discord_id || !form.first_name || !form.last_name}
+              className="flex items-center gap-2 px-5 py-2 bg-amber-900/30 border border-amber-700/50 text-amber-300 hover:bg-amber-900/50 font-mono text-xs rounded-sm transition-all disabled:opacity-40">
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <FlaskConical size={12} />}
+              SUBMIT TEST
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Applications Page ─────────────────────────────────────────────────────
 export default function Applications() {
   const { isAdmin, isMod } = useAuth();
@@ -261,8 +395,9 @@ export default function Applications() {
   const [apps, setApps]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setTab]   = useState('all');
-  const [selected, setSelected] = useState(null);
-  const [error, setError]       = useState('');
+  const [selected, setSelected]     = useState(null);
+  const [showTestModal, setTestModal] = useState(false);
+  const [error, setError]           = useState('');
 
   // Redirect non-staff
   useEffect(() => {
@@ -317,12 +452,20 @@ export default function Applications() {
             // RECRUITMENT MANAGEMENT — 26TH MEU (SOC)
           </p>
         </div>
-        <button
-          onClick={fetchApps}
-          className="px-3 py-1.5 border border-[#162448] hover:border-[#3b82f6]/30 text-[#4a6fa5] hover:text-[#93c5fd] font-mono text-xs rounded-sm transition-all"
-        >
-          REFRESH
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setTestModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-800/40 bg-amber-950/20 hover:bg-amber-950/40 text-amber-400 font-mono text-xs rounded-sm transition-all"
+          >
+            <FlaskConical size={12} /> TEST APP
+          </button>
+          <button
+            onClick={fetchApps}
+            className="px-3 py-1.5 border border-[#162448] hover:border-[#3b82f6]/30 text-[#4a6fa5] hover:text-[#93c5fd] font-mono text-xs rounded-sm transition-all"
+          >
+            REFRESH
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -482,6 +625,14 @@ export default function Applications() {
           app={selected}
           onClose={() => setSelected(null)}
           onReview={handleReview}
+        />
+      )}
+
+      {/* Staff test application modal */}
+      {showTestModal && (
+        <TestAppModal
+          onClose={() => setTestModal(false)}
+          onSubmitted={() => { fetchApps(); api.get('/applications').then(r => setAllApps(r.data)).catch(() => {}); }}
         />
       )}
     </div>
