@@ -263,6 +263,53 @@ async function announceEvent(operation) {
   }
 }
 
+// ── Application Approved ──────────────────────────────────────────────────────
+async function announceApplicationApproved(discordUserId, marineName) {
+  const channelId = process.env.DISCORD_RECRUIT_HALL_CHANNEL_ID;
+  const channel = await getChannel(channelId);
+  if (!channel) return;
+  const embed = new EmbedBuilder()
+    .setColor(0x22c55e)
+    .setAuthor({ name: '✅ APPLICATION APPROVED — 26th MEU (SOC)' })
+    .setTitle(marineName)
+    .setDescription(`<@${discordUserId}> your application has been **approved**! Welcome to the 26th MEU (SOC).`)
+    .addFields(
+      { name: 'Next Step', value: 'Report to this channel and attend a **School of Infantry** class.', inline: false },
+      { name: 'Your Rank', value: 'E1 | Recruit', inline: true },
+    )
+    .setFooter({ text: 'PERSCOM — 26th MEU (SOC)' })
+    .setTimestamp();
+  await channel.send({
+    content: `<@${discordUserId}> — **Application Approved** — Report to #recruit-hall and attend a School of Infantry class.`,
+    embeds: [embed],
+  }).catch(err => {
+    console.error('[ANNOUNCER] app approved:', err.message);
+  });
+}
+
+// ── Application Denied ────────────────────────────────────────────────────────
+async function announceApplicationDenied(discordUserId, reason) {
+  const channelId = process.env.DISCORD_RECRUIT_HALL_CHANNEL_ID;
+  const channel = await getChannel(channelId);
+  if (!channel) return;
+  const embed = new EmbedBuilder()
+    .setColor(0xef4444)
+    .setAuthor({ name: '❌ APPLICATION DENIED — 26th MEU (SOC)' })
+    .setDescription(`<@${discordUserId}> your application has been reviewed and was not accepted at this time.`)
+    .addFields(
+      { name: 'Reason', value: reason || 'No reason provided.', inline: false },
+      { name: 'Reapply', value: 'You may reapply in **72 hours**.', inline: false },
+    )
+    .setFooter({ text: 'PERSCOM — 26th MEU (SOC)' })
+    .setTimestamp();
+  await channel.send({
+    content: `<@${discordUserId}> — Application Denied. You may reapply in 72 hours.`,
+    embeds: [embed],
+  }).catch(err => {
+    console.error('[ANNOUNCER] app denied:', err.message);
+  });
+}
+
 module.exports = {
   announceRankChange,
   announceAward,
@@ -270,4 +317,6 @@ module.exports = {
   announceOrbatAssignment,
   announceStatusChange,
   announceEvent,
+  announceApplicationApproved,
+  announceApplicationDenied,
 };

@@ -335,6 +335,38 @@ function initializeDatabase() {
     );
   `);
 
+  // Applications table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      discord_id TEXT NOT NULL,
+      discord_username TEXT NOT NULL,
+      discord_avatar TEXT,
+      ingame_name TEXT NOT NULL,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      age INTEGER NOT NULL,
+      platform TEXT NOT NULL,
+      desired_role TEXT NOT NULL,
+      referred_by TEXT,
+      reforger_experience TEXT NOT NULL,
+      other_unit TEXT,
+      other_unit_conflict TEXT,
+      how_heard TEXT NOT NULL,
+      why_join TEXT NOT NULL,
+      long_term_commitment INTEGER NOT NULL DEFAULT 0,
+      na_timezone INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected','review')),
+      denial_reason TEXT,
+      personnel_id INTEGER,
+      submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at DATETIME,
+      reviewed_by INTEGER,
+      FOREIGN KEY (personnel_id) REFERENCES personnel(id),
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    );
+  `);
+
   // ── Discord OAuth migration ────────────────────────────────────────────────
   // Migrate users table to support Discord auth and marine role.
   //

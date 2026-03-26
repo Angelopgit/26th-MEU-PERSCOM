@@ -13,6 +13,8 @@ import EventLog from './pages/EventLog';
 import MarineProfile from './pages/MarineProfile';
 import Settings from './pages/Settings';
 import Documents from './pages/Documents';
+import Apply from './pages/Apply';
+import Applications from './pages/Applications';
 import WelcomeScreen from './components/WelcomeScreen';
 import NoPersonnelModal from './components/NoPersonnelModal';
 
@@ -57,6 +59,8 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Public routes — no auth required */}
+      <Route path="/apply" element={<Apply />} />
       {/* Don't redirect guests to "/" — ProtectedRoute blocks them there and causes an infinite loop */}
       <Route path="/login" element={(user && !isGuest) ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/register" element={<Register />} />
@@ -66,6 +70,7 @@ function AppRoutes() {
         <Route path="evaluations" element={<StaffRoute><Evaluations /></StaffRoute>} />
         <Route path="eventlog" element={<StaffRoute><EventLog /></StaffRoute>} />
         <Route path="settings" element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
+        <Route path="applications" element={<StaffRoute><Applications /></StaffRoute>} />
 
         {/* Marine + Guest + Staff accessible routes (read-only enforcement at API level) */}
         <Route path="personnel" element={<Personnel />} />

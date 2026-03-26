@@ -43,6 +43,7 @@ async function startBot() {
     require('./commands/evaluate'),
     require('./commands/deactivate'),
     require('./commands/event_refresh'),
+    require('./commands/application'),
   ];
 
   for (const cmd of commands) {
@@ -263,4 +264,60 @@ async function getGuildRoles() {
   }
 }
 
-module.exports = { startBot, getClient, getMemberRoles, getGuildRoles };
+/**
+ * Check if a Discord user is eligible to apply:
+ * - Must be in the guild
+ * - Must have the DISCORD_ROLE_VERIFIED role
+ * - Must NOT have the DISCORD_ROLE_PERSONNEL role
+ * Returns { eligible, reason, in_guild, has_personnel_role }
+ */
+async function checkApplicantRoles(discordId) {
+  if (!client || !process.env.DISCORD_GUILD_ID) {
+    return { eligible: false, reason: 'Bot not available', in_guild: false, has_personnel_role: false };
+  }
+  try {
+    const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+    let member;
+    try {
+      member = await guild.members.fetch(discordId);
+    } catch {
+      return { eligible: false, reason: 'not_in_guild', in_guild: false, has_personnel_role: false };
+    }
+    const roleIds = member.roles.cache.map(r => r.id);
+    const hasPersonnel = process.env.DISCORD_ROLE_PERSONNEL && roleIds.includes(process.env.DISCORD_ROLE_PERSONNEL);
+    const hasVerified = !process.env.DISCORD_ROLE_VERIFIED || roleIds.includes(process.env.DISCORD_ROLE_VERIFIED);
+    if (hasPersonnel) {
+      return { eligible: false, reason: 'already_personnel', in_guild: true, has_personnel_role: true };
+    }
+    if (!hasVerified) {
+      return { eligible: false, reason: 'not_verified', in_guild: true, has_personnel_role: false };
+    }
+    return { eligible: true, reason: null, in_guild: true, has_personnel_role: false };
+  } catch (err) {
+    return { eligible: false, reason: 'bot_error', in_guild: false, has_personnel_role: false };
+  }
+}
+
+/**
+ * Add approved roles to a Discord member when their application is accepted.
+ * Adds: DISCORD_ROLE_PERSONNEL, DISCORD_ROLE_RECRUIT, DISCORD_ROLE_ENLISTED
+ */
+async function addApprovedRoles(discordId) {
+  if (!client || !process.env.DISCORD_GUILD_ID) return;
+  try {
+    const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+    const member = await guild.members.fetch(discordId);
+    const rolesToAdd = [
+      process.env.DISCORD_ROLE_PERSONNEL,
+      process.env.DISCORD_ROLE_RECRUIT,
+      process.env.DISCORD_ROLE_ENLISTED,
+    ].filter(Boolean);
+    for (const roleId of rolesToAdd) {
+      await member.roles.add(roleId).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[BOT] addApprovedRoles error:', err.message);
+  }
+}
+
+module.exports = { startBot, getClient, getMemberRoles, getGuildRoles, checkApplicantRoles, addApprovedRoles };

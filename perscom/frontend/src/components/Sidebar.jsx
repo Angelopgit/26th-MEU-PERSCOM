@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Map, ClipboardList, LogOut,
-  Target, ScrollText, Settings, Eye, BookOpen, X,
+  Target, ScrollText, Settings, Eye, BookOpen, X, ClipboardCheck,
 } from 'lucide-react';
 import MeuLogo from '../assets/MeuLogo';
 
@@ -12,9 +12,10 @@ const NAV_ITEMS = [
   { to: '/roster',      icon: Target,          label: 'Roster',         end: false, guestHide: false, marineHide: false },
   { to: '/documents',   icon: BookOpen,        label: 'Documents',      end: false, guestHide: false, marineHide: false },
   { to: '/operations',  icon: Map,             label: 'Ops / Training', end: false, guestHide: true,  marineHide: false },
-  { to: '/evaluations', icon: ClipboardList,   label: 'Evaluations',    end: false, guestHide: true,  marineHide: true  },
-  { to: '/eventlog',    icon: ScrollText,      label: 'Event Log',      end: false, guestHide: true,  marineHide: true  },
-  { to: '/settings',    icon: Settings,        label: 'Settings',       end: false, guestHide: true,  marineHide: true, adminOnly: true },
+  { to: '/evaluations',  icon: ClipboardList,  label: 'Evaluations',    end: false, guestHide: true,  marineHide: true  },
+  { to: '/eventlog',     icon: ScrollText,     label: 'Event Log',      end: false, guestHide: true,  marineHide: true  },
+  { to: '/applications', icon: ClipboardCheck, label: 'Applications',   end: false, guestHide: true,  marineHide: true  },
+  { to: '/settings',     icon: Settings,       label: 'Settings',       end: false, guestHide: true,  marineHide: true, adminOnly: true },
 ];
 
 export default function Sidebar({ open, onClose }) {

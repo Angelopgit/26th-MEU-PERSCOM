@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { storeToken } from '../utils/api';
-import { AlertCircle, Loader2, Eye, User } from 'lucide-react';
+import { AlertCircle, Loader2, Eye, User, UserPlus } from 'lucide-react';
 import Modal from '../components/Modal';
 
 // ── Admin alias selector — shown after admin login ────────────────────────────
@@ -302,6 +302,26 @@ export default function Login() {
 
           <p className="text-[#1a2f55] text-[9px] font-mono text-center mt-2 leading-relaxed">
             Read-only access · Personnel &amp; Roster only
+          </p>
+
+          {/* Apply to join */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px bg-[#162448]" />
+            <span className="text-[#1a2f55] font-mono text-[10px]">NEW RECRUIT</span>
+            <div className="flex-1 h-px bg-[#162448]" />
+          </div>
+
+          <Link
+            to="/apply"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm border border-[#22c55e]/30 hover:border-[#22c55e]/60 text-[#22c55e] hover:text-[#4ade80] transition-all text-sm font-mono"
+            data-sound="boot"
+          >
+            <UserPlus size={13} />
+            APPLY TO JOIN 26th MEU
+          </Link>
+
+          <p className="text-[#1a2f55] text-[9px] font-mono text-center mt-2 leading-relaxed">
+            Requires Discord server membership
           </p>
         </div>
       </div>

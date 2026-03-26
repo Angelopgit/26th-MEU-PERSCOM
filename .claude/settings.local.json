@@ -9,7 +9,18 @@
       "Bash(npm run:*)",
       "Bash(chmod +x /Users/angelosmac/26th-MEU-PERSCOM/perscom/frontend/node_modules/.bin/vite)",
       "Bash(rm -rf node_modules package-lock.json)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(node --check src/routes/applications.js)",
+      "Bash(node --check src/discord/commands/application.js)",
+      "Bash(node --check src/config/database.js)",
+      "Bash(node --check src/server.js)",
+      "Bash(node --check src/discord/bot.js)",
+      "Bash(node --check src/discord/announcer.js)",
+      "Bash(node --check /Users/angelosmac/26th-MEU-PERSCOM/perscom/backend/src/routes/applications.js)",
+      "Bash(node --check /Users/angelosmac/26th-MEU-PERSCOM/perscom/backend/src/discord/commands/application.js)",
+      "Bash(node --check /Users/angelosmac/26th-MEU-PERSCOM/perscom/backend/src/discord/bot.js)",
+      "Bash(node --check /Users/angelosmac/26th-MEU-PERSCOM/perscom/backend/src/config/database.js)",
+      "Bash(node --check /Users/angelosmac/26th-MEU-PERSCOM/perscom/backend/src/server.js)"
     ]
   }
 }
