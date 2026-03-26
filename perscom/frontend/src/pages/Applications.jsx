@@ -315,7 +315,7 @@ function TestAppModal({ onClose, onSubmitted }) {
             </div>
             <div>
               <label className={lbl}>Discord Username</label>
-              <input className={inp} placeholder="e.g. angelo" value={form.discord_username}
+              <input className={inp} placeholder="e.g. nick" value={form.discord_username}
                 onChange={e => set('discord_username', e.target.value)} />
             </div>
           </div>
