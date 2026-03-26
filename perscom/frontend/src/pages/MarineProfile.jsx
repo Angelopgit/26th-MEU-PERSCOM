@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Star, Shield, Clock, Calendar, Award,
   CheckSquare, Loader2, Plus, X, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Target, TrendingUp, CalendarClock, Edit2,
+  CheckCircle2, AlertTriangle, Target, TrendingUp, CalendarClock, Edit2, FileText,
 } from 'lucide-react';
 import { differenceInDays, format, formatDistanceToNow } from 'date-fns';
 import api from '../utils/api';
@@ -322,6 +322,7 @@ export default function MarineProfile() {
   const [rankProgressionEnabled, setRankProgressionEnabled] = useState(false);
   const [settingLoa, setSettingLoa]     = useState(false);
   const [showLoaModal, setShowLoaModal] = useState(false);
+  const [myApplication, setMyApplication] = useState(null);
 
   const fetchPerson = useCallback(async () => {
     setLoading(true);
@@ -352,6 +353,14 @@ export default function MarineProfile() {
       .then((res) => setAttendance(res.data))
       .catch(() => setAttendance(null));
   }, [id, person]);
+
+  // Fetch own application (only when viewing own profile)
+  useEffect(() => {
+    if (!currentUser?.personnel_id || Number(currentUser.personnel_id) !== Number(id)) return;
+    api.get('/applications/mine')
+      .then((res) => setMyApplication(res.data.application || null))
+      .catch(() => {});
+  }, [id, currentUser?.personnel_id]);
 
   // Fetch ranks + progression setting
   useEffect(() => {
@@ -801,6 +810,79 @@ export default function MarineProfile() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── My Application (self only) ──────────────────────────────────── */}
+      {isSelf && myApplication && (
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText size={13} className="text-[#4a6fa5]" />
+              <span className="section-header">MY APPLICATION</span>
+            </div>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-sm border ${
+              myApplication.status === 'accepted'  ? 'text-green-400 border-green-900/50 bg-green-950/20' :
+              myApplication.status === 'rejected'  ? 'text-red-400 border-red-900/50 bg-red-950/20' :
+              myApplication.status === 'review'    ? 'text-amber-400 border-amber-900/50 bg-amber-950/20' :
+              'text-[#60a5fa] border-[#162448]'
+            }`}>
+              {myApplication.status === 'accepted' ? '✓ ACCEPTED' :
+               myApplication.status === 'rejected' ? '✗ REJECTED' :
+               myApplication.status === 'review'   ? '⚑ FURTHER REVIEW' :
+               '● PENDING'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">SUBMITTED</div>
+              <div className="text-[#dbeafe] font-mono">{new Date(myApplication.submitted_at).toLocaleDateString()}</div>
+            </div>
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">PLATFORM</div>
+              <div className="text-[#dbeafe] font-mono">{myApplication.platform}</div>
+            </div>
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">DESIRED ROLE</div>
+              <div className="text-[#dbeafe] font-mono">{myApplication.desired_role}</div>
+            </div>
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">AGE</div>
+              <div className="text-[#dbeafe] font-mono">{myApplication.age}</div>
+            </div>
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">NA TIMEZONE</div>
+              <div className="text-[#dbeafe] font-mono">{myApplication.na_timezone ? 'Yes' : 'No'}</div>
+            </div>
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">LONG-TERM COMMITMENT</div>
+              <div className="text-[#dbeafe] font-mono">{myApplication.long_term_commitment ? 'Yes' : 'No'}</div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">REFORGER EXPERIENCE</div>
+            <div className="text-[#8aa8cc] text-xs leading-relaxed">{myApplication.reforger_experience}</div>
+          </div>
+          <div>
+            <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">WHY JOIN</div>
+            <div className="text-[#8aa8cc] text-xs leading-relaxed">{myApplication.why_join}</div>
+          </div>
+
+          {myApplication.other_unit && (
+            <div>
+              <div className="text-[#4a6fa5] font-mono text-[10px] mb-0.5">OTHER UNIT</div>
+              <div className="text-[#8aa8cc] text-xs">{myApplication.other_unit}</div>
+            </div>
+          )}
+
+          {myApplication.status === 'rejected' && myApplication.denial_reason && (
+            <div className="border border-red-900/40 bg-red-950/10 rounded-sm p-3">
+              <div className="text-red-400 font-mono text-[10px] mb-0.5">DENIAL REASON</div>
+              <div className="text-red-300/80 text-xs">{myApplication.denial_reason}</div>
+            </div>
+          )}
         </div>
       )}
 

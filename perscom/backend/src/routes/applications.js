@@ -192,7 +192,7 @@ router.post('/staff-test', authenticate, requireStaff, (req, res) => {
         desired_role, referred_by, reforger_experience,
         other_unit, other_unit_conflict, how_heard, why_join,
         long_term_commitment, na_timezone, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
     `).run(
       discord_id,
       discord_username || '',
@@ -214,6 +214,31 @@ router.post('/staff-test', authenticate, requireStaff, (req, res) => {
     return res.json({ id: result.lastInsertRowid });
   } catch (err) {
     console.error('[APPLICATIONS] staff-test error:', err.message);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /api/applications/mine (self — authenticated) ────────────────────────
+// Returns the current user's most recent application by their discord_id.
+// Only returns data when the user has a discord_id linked to their account.
+router.get('/mine', authenticate, (req, res) => {
+  const { discord_id } = req.user;
+  if (!discord_id) {
+    return res.json({ application: null });
+  }
+  try {
+    const db = getDb();
+    const app = db.prepare(`
+      SELECT a.*, u.display_name as reviewed_by_name
+      FROM applications a
+      LEFT JOIN users u ON a.reviewed_by = u.id
+      WHERE a.discord_id = ?
+      ORDER BY a.submitted_at DESC
+      LIMIT 1
+    `).get(discord_id);
+    return res.json({ application: app || null });
+  } catch (err) {
+    console.error('[APPLICATIONS] mine error:', err.message);
     return res.status(500).json({ error: 'Server error' });
   }
 });
