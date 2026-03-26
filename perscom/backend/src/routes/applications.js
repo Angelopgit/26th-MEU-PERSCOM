@@ -70,7 +70,6 @@ router.post('/', (req, res) => {
     discord_id,
     discord_username,
     discord_avatar,
-    ingame_name,
     first_name,
     last_name,
     age,
@@ -127,16 +126,15 @@ router.post('/', (req, res) => {
     const result = db.prepare(`
       INSERT INTO applications (
         discord_id, discord_username, discord_avatar,
-        ingame_name, first_name, last_name, age, platform,
+        first_name, last_name, age, platform,
         desired_role, referred_by, reforger_experience,
         other_unit, other_unit_conflict, how_heard, why_join,
         long_term_commitment, na_timezone, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
     `).run(
       discord_id,
       discord_username || '',
       discord_avatar || null,
-      ingame_name,
       first_name,
       last_name,
       age,

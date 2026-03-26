@@ -370,7 +370,6 @@ function Step1({ onAccept, onBack }) {
 // ── STEP 2: Application Form ───────────────────────────────────────────────────
 function Step2({ discordData, onSubmitted, onBack }) {
   const [form, setForm] = useState({
-    ingame_name: '',
     first_name: '',
     last_name: '',
     age: '',
@@ -392,7 +391,6 @@ function Step2({ discordData, onSubmitted, onBack }) {
   const handle = e => set(e.target.name, e.target.value);
 
   const isValid = () =>
-    form.ingame_name.trim() &&
     form.first_name.trim() &&
     form.last_name.trim() &&
     Number(form.age) >= 16 &&
@@ -445,20 +443,14 @@ function Step2({ discordData, onSubmitted, onBack }) {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* In-Game Name */}
-          <div>
-            <label className={labelCls}>In-Game Marine Name</label>
-            <input name="ingame_name" type="text" className={inputCls} placeholder="Full in-game name" value={form.ingame_name} onChange={handle} />
-          </div>
-
-          {/* First / Last */}
+          {/* Marine Name — First & Last become their in-game Marine name in PERSCOM */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>First Name</label>
+              <label className={labelCls}>First Name <span className="text-[#1a2f55] normal-case">(Marine Name)</span></label>
               <input name="first_name" type="text" className={inputCls} placeholder="First" value={form.first_name} onChange={handle} />
             </div>
             <div>
-              <label className={labelCls}>Last Name</label>
+              <label className={labelCls}>Last Name <span className="text-[#1a2f55] normal-case">(Marine Name)</span></label>
               <input name="last_name" type="text" className={inputCls} placeholder="Last" value={form.last_name} onChange={handle} />
             </div>
           </div>

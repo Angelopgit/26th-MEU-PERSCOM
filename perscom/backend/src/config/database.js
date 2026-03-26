@@ -342,7 +342,6 @@ function initializeDatabase() {
       discord_id TEXT NOT NULL,
       discord_username TEXT NOT NULL,
       discord_avatar TEXT,
-      ingame_name TEXT NOT NULL,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       age INTEGER NOT NULL,

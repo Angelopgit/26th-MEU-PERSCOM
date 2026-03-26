@@ -40,7 +40,6 @@ module.exports = {
       .setTitle(`${app.first_name} ${app.last_name}`)
       .setDescription(`Discord: <@${app.discord_id}> | Status: **${statusLabels[app.status]}**`)
       .addFields(
-        { name: 'In-Game Name',        value: app.ingame_name || '—',         inline: true },
         { name: 'Age',                 value: String(app.age),                inline: true },
         { name: 'Platform',            value: app.platform,                   inline: true },
         { name: 'Desired Role',        value: app.desired_role,               inline: true },

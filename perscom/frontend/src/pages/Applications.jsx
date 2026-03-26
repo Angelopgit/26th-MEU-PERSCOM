@@ -83,7 +83,6 @@ function AppModal({ app, onClose, onReview }) {
               {/* Two-column fields */}
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 {[
-                  ['In-Game Name', app.ingame_name],
                   ['Age', app.age],
                   ['Platform', app.platform],
                   ['Desired Role', app.desired_role],
