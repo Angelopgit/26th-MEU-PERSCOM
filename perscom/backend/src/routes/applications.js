@@ -130,7 +130,7 @@ router.post('/', (req, res) => {
         desired_role, referred_by, reforger_experience,
         other_unit, other_unit_conflict, how_heard, why_join,
         long_term_commitment, na_timezone, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
     `).run(
       discord_id,
       discord_username || '',
