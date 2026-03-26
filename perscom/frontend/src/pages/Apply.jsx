@@ -372,7 +372,9 @@ function Step2({ discordData, onSubmitted, onBack }) {
       const res = await api.post('/applications', payload);
       onSubmitted(res.data.id);
     } catch (err) {
-      setError(err.response?.data?.error || 'Submission failed. Please try again.');
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || err.response?.data || err.message || 'Submission failed.';
+      setError(typeof msg === 'string' ? `${status ? `[${status}] ` : ''}${msg}` : `[${status}] Unexpected response`);
     } finally {
       setLoading(false);
     }

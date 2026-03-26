@@ -152,8 +152,8 @@ router.post('/', (req, res) => {
 
     return res.status(201).json({ id: result.lastInsertRowid });
   } catch (err) {
-    console.error('[APPLICATIONS] submit error:', err.message);
-    return res.status(500).json({ error: 'Server error' });
+    console.error('[APPLICATIONS] submit error:', err.message, err.stack);
+    return res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
