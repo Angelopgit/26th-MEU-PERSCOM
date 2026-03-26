@@ -323,35 +323,56 @@ router.patch('/:id/review', authenticate, requireStaff, async (req, res) => {
       const lastName = app.last_name || '';
       const marineName = `${firstInitial}. ${lastName}`;
 
-      // Create personnel record
-      const pResult = db.prepare(`
-        INSERT INTO personnel (name, status, rank, rank_since, date_of_entry, member_status)
-        VALUES (?, 'Marine', 'Recruit', ?, ?, 'Active')
-      `).run(marineName, today, today);
+      // Check if a user already exists with this discord_id (e.g. staff testing their own app)
+      const existingUser = db.prepare('SELECT id, personnel_id FROM users WHERE discord_id = ?').get(app.discord_id);
 
-      const personnelId = pResult.lastInsertRowid;
+      let personnelId;
 
-      // Generate a random password for the new user
-      const randomPassword = crypto.randomBytes(16).toString('hex');
-      const passwordHash = bcrypt.hashSync(randomPassword, 10);
+      if (existingUser) {
+        // User already exists — reuse their personnel record if they have one,
+        // otherwise create a new personnel record and link it.
+        if (existingUser.personnel_id) {
+          personnelId = existingUser.personnel_id;
+        } else {
+          const pResult = db.prepare(`
+            INSERT INTO personnel (name, status, rank, rank_since, date_of_entry, member_status)
+            VALUES (?, 'Marine', 'Recruit', ?, ?, 'Active')
+          `).run(marineName, today, today);
+          personnelId = pResult.lastInsertRowid;
+          db.prepare('UPDATE users SET personnel_id = ? WHERE id = ?').run(personnelId, existingUser.id);
+          db.prepare('UPDATE personnel SET user_id = ? WHERE id = ?').run(existingUser.id, personnelId);
+        }
+      } else {
+        // Create personnel record
+        const pResult = db.prepare(`
+          INSERT INTO personnel (name, status, rank, rank_since, date_of_entry, member_status)
+          VALUES (?, 'Marine', 'Recruit', ?, ?, 'Active')
+        `).run(marineName, today, today);
 
-      // Create users record
-      const uResult = db.prepare(`
-        INSERT INTO users (username, password_hash, display_name, role, discord_id, discord_username, discord_avatar, personnel_id)
-        VALUES (?, ?, ?, 'marine', ?, ?, ?, ?)
-      `).run(
-        app.discord_id,
-        passwordHash,
-        marineName,
-        app.discord_id,
-        app.discord_username,
-        app.discord_avatar,
-        personnelId,
-      );
+        personnelId = pResult.lastInsertRowid;
 
-      // Link personnel back to user
-      db.prepare('UPDATE personnel SET user_id = ? WHERE id = ?')
-        .run(uResult.lastInsertRowid, personnelId);
+        // Generate a random password for the new user
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        const passwordHash = bcrypt.hashSync(randomPassword, 10);
+
+        // Create users record
+        const uResult = db.prepare(`
+          INSERT INTO users (username, password_hash, display_name, role, discord_id, discord_username, discord_avatar, personnel_id)
+          VALUES (?, ?, ?, 'marine', ?, ?, ?, ?)
+        `).run(
+          app.discord_id,
+          passwordHash,
+          marineName,
+          app.discord_id,
+          app.discord_username,
+          app.discord_avatar,
+          personnelId,
+        );
+
+        // Link personnel back to user
+        db.prepare('UPDATE personnel SET user_id = ? WHERE id = ?')
+          .run(uResult.lastInsertRowid, personnelId);
+      }
 
       // Update application
       db.prepare(`

@@ -156,33 +156,21 @@ function Logo({ size = 152, glowGreen = false }) {
   );
 }
 
-// ── STEP 0: Discord Verification ───────────────────────────────────────────────
-function Step0({ onVerified, onStatusCheck }) {
-  const [discordId, setDiscordId]   = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [alertType, setAlertType]   = useState(null); // 'not_in_guild' | 'already_personnel' | 'not_verified' | null
-  const [error, setError]           = useState('');
+// Discord icon SVG
+function DiscordIcon() {
+  return (
+    <svg width="18" height="14" viewBox="0 0 71 55" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M60.1045 4.8978C55.5792 2.8214 50.7265 1.2916 45.6527 0.41542C45.5603 0.39851 45.468 0.44077 45.4204 0.52529C44.7963 1.6353 44.105 3.0834 43.6209 4.2216C38.1637 3.4046 32.7345 3.4046 27.3892 4.2216C26.905 3.0581 26.1886 1.6353 25.5617 0.52529C25.5141 0.44359 25.4218 0.40133 25.3294 0.41542C20.2584 1.2888 15.4057 2.8186 10.8776 4.8978C10.8384 4.9147 10.8048 4.9429 10.7825 4.9795C1.57795 18.7309 -0.943561 32.1443 0.293408 45.3914C0.299005 45.4562 0.335386 45.5182 0.385761 45.5576C7.16596 50.5495 13.7371 53.5582 20.1907 55.5213C20.2831 55.5495 20.3809 55.5157 20.4397 55.4398C21.9517 53.3696 23.3002 51.1855 24.4513 48.8891C24.5127 48.7673 24.4569 48.6228 24.3309 48.5766C22.1793 47.7597 20.1349 46.7551 18.1665 45.6201C18.0265 45.5378 18.0153 45.339 18.1441 45.2427C18.5522 44.9415 18.9603 44.629 19.3516 44.3137C19.4161 44.2607 19.505 44.2494 19.5814 44.2832C31.2814 49.7447 43.9246 49.7447 55.4835 44.2832C55.5599 44.2466 55.6488 44.2579 55.7161 44.311C56.1074 44.6263 56.5155 44.9415 56.9264 45.2427C57.0552 45.339 57.0468 45.5378 56.9068 45.6201C54.9384 46.7777 52.894 47.7597 50.7396 48.5738C50.6136 48.62 50.5606 48.7673 50.6219 48.8891C51.7954 51.1827 53.1440 53.3668 54.6280 55.437C54.6840 55.5157 54.7846 55.5495 54.8770 55.5213C61.3585 53.5582 67.9296 50.5495 74.7098 45.5576C74.7629 45.5182 74.7965 45.459 74.8021 45.3942C76.3068 30.0691 72.2929 16.7757 64.0947 4.9823C64.0752 4.9429 64.0416 4.9147 60.1045 4.8978Z" />
+    </svg>
+  );
+}
 
-  const handleVerify = async () => {
-    if (!discordId.trim()) return;
-    setLoading(true);
-    setAlertType(null);
-    setError('');
-    try {
-      const res = await api.post('/applications/check-discord', { discord_id: discordId.trim() });
-      const { eligible, reason } = res.data;
+// ── STEP 0: Discord OAuth Login ─────────────────────────────────────────────────
+function Step0({ onVerified, onStatusCheck, oauthError }) {
+  const [checking, setChecking] = useState(false);
+  const [alertType, setAlertType] = useState(null);
 
-      if (!eligible) {
-        setAlertType(reason);
-        return;
-      }
-      onVerified({ discord_id: discordId.trim() });
-    } catch (err) {
-      setError(err.response?.data?.error || 'Verification failed. Try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const DISCORD_OAUTH_URL = `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}/api/auth/discord-apply`;
 
   return (
     <div className="anim-fadeslide">
@@ -203,27 +191,12 @@ function Step0({ onVerified, onStatusCheck }) {
       {/* Auth card */}
       <div className="bg-[#090f1e]/90 border border-[#162448] rounded-sm p-6">
         <p className="text-[#1a2f55] font-mono text-[10px] uppercase tracking-widest mb-5">
-          // STEP 1 OF 3 — IDENTITY VERIFICATION
+          // STEP 1 OF 3 — DISCORD VERIFICATION
         </p>
 
         <div className="space-y-3">
-          <div>
-            <label className="label">Enter your Discord User ID</label>
-            <input
-              type="text"
-              className="input-field w-full"
-              placeholder="e.g. 123456789012345678"
-              value={discordId}
-              onChange={e => setDiscordId(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleVerify()}
-            />
-            <p className="text-[#1a2f55] text-[9px] font-mono mt-1.5 leading-relaxed">
-              Right-click your name in Discord → Copy User ID (enable Developer Mode in Discord Settings → Advanced)
-            </p>
-          </div>
-
-          {/* Alerts */}
-          {alertType === 'not_in_guild' && (
+          {/* Not in server error */}
+          {(oauthError === 'not_in_server') && (
             <div className="bg-red-950/30 border border-red-800/50 rounded-sm p-4 space-y-3">
               <div className="flex items-start gap-2 text-red-400 text-xs">
                 <AlertCircle size={13} className="shrink-0 mt-0.5" />
@@ -241,43 +214,25 @@ function Step0({ onVerified, onStatusCheck }) {
             </div>
           )}
 
-          {alertType === 'already_personnel' && (
-            <div className="flex items-start gap-2 text-amber-400 text-xs bg-amber-950/30 border border-amber-800/40 px-3 py-2.5 rounded-sm">
-              <AlertCircle size={12} className="shrink-0 mt-0.5" />
-              <span>You are already a member of the 26th MEU. Access PERSCOM to <Link to="/login" className="underline hover:text-amber-300">login</Link>.</span>
-            </div>
-          )}
-
-          {alertType === 'not_verified' && (
+          {oauthError && oauthError !== 'not_in_server' && (
             <div className="flex items-start gap-2 text-red-400 text-xs bg-red-950/30 border border-red-900/40 px-3 py-2.5 rounded-sm">
               <AlertCircle size={12} className="shrink-0 mt-0.5" />
-              <span>You must have the <strong>Verified</strong> role in the Discord server. Obtain it by verifying in the server first.</span>
+              <span>Discord login failed ({oauthError}). Please try again.</span>
             </div>
           )}
 
-          {(alertType === 'bot_error' || alertType === 'Bot not available') && (
-            <div className="flex items-start gap-2 text-amber-400 text-xs bg-amber-950/30 border border-amber-800/40 px-3 py-2.5 rounded-sm">
-              <AlertCircle size={12} className="shrink-0 mt-0.5" />
-              <span>Bot verification unavailable. You may continue, but ensure you are in the Discord server.</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="flex items-start gap-2 text-red-400 text-xs bg-red-950/30 border border-red-900/40 px-3 py-2.5 rounded-sm">
-              <AlertCircle size={12} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <button
-            onClick={handleVerify}
-            disabled={loading || !discordId.trim()}
-            className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
-            data-sound="boot"
+          {/* Login with Discord button */}
+          <a
+            href={DISCORD_OAUTH_URL}
+            className="flex items-center justify-center gap-3 w-full px-4 py-3 rounded-sm bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm font-mono font-bold tracking-wider transition-all"
           >
-            {loading ? <Loader2 size={13} className="animate-spin" /> : null}
-            VERIFY DISCORD
-          </button>
+            <DiscordIcon />
+            LOGIN WITH DISCORD
+          </a>
+
+          <p className="text-[#1a2f55] text-[9px] font-mono text-center leading-relaxed">
+            You must be in the 26th MEU Discord server to apply.
+          </p>
         </div>
 
         {/* Divider */}
@@ -295,10 +250,7 @@ function Step0({ onVerified, onStatusCheck }) {
           CHECK APPLICATION STATUS
         </button>
 
-        <div className="flex items-center gap-3 mt-4">
-          <div className="flex-1 h-px bg-[#162448]" />
-        </div>
-        <div className="text-center mt-3">
+        <div className="text-center mt-4">
           <Link to="/login" className="text-[#1a2f55] hover:text-[#4a6fa5] font-mono text-[9px] transition-colors">
             Already a member? Login to PERSCOM
           </Link>
@@ -458,7 +410,12 @@ function Step2({ discordData, onSubmitted, onBack }) {
           {/* Discord (readonly) */}
           <div>
             <label className={labelCls}>Discord Account</label>
-            <input type="text" className={`${inputCls} opacity-60 cursor-not-allowed`} value={discordData.discord_id} readOnly />
+            <input
+              type="text"
+              className={`${inputCls} opacity-60 cursor-not-allowed`}
+              value={discordData.discord_username ? `@${discordData.discord_username}` : discordData.discord_id}
+              readOnly
+            />
           </div>
 
           {/* Age */}
@@ -658,6 +615,33 @@ export default function Apply() {
   const [discordData, setDiscordData] = useState(null);
   const [appId, setAppId]           = useState(null);
   const [showStatus, setShowStatus] = useState(false);
+  const [oauthError, setOauthError] = useState(null);
+
+  // On mount, check if Discord OAuth redirected back with discord_id params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const discordId = params.get('discord_id');
+    const error     = params.get('error');
+
+    if (error) {
+      setOauthError(error);
+      // Clean the URL
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (discordId) {
+      const data = {
+        discord_id:       discordId,
+        discord_username: params.get('discord_username') || '',
+        discord_avatar:   params.get('discord_avatar')   || null,
+      };
+      // Clean the URL before advancing
+      window.history.replaceState({}, '', window.location.pathname);
+      setDiscordData(data);
+      setStep(1);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#06091a] flex items-center justify-center px-4 py-8 relative overflow-hidden">
@@ -691,6 +675,7 @@ export default function Apply() {
           <Step0
             onVerified={data => { setDiscordData(data); setStep(1); }}
             onStatusCheck={() => setShowStatus(true)}
+            oauthError={oauthError}
           />
         )}
 

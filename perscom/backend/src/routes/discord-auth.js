@@ -181,11 +181,34 @@ router.get('/discord', (req, res) => {
   res.redirect(`https://discord.com/oauth2/authorize?${params}`);
 });
 
+// ── Discord OAuth for the public /apply portal ────────────────────────────────
+// Does NOT require Personnel role — just needs to verify guild membership and
+// get the user's Discord ID/username/avatar for the application form.
+router.get('/discord-apply', (req, res) => {
+  const { DISCORD_CLIENT_ID, DISCORD_REDIRECT_URI } = process.env;
+  if (!DISCORD_CLIENT_ID || !DISCORD_REDIRECT_URI) {
+    return res.status(500).json({ error: 'Discord OAuth is not configured' });
+  }
+
+  const params = new URLSearchParams({
+    client_id: DISCORD_CLIENT_ID,
+    redirect_uri: DISCORD_REDIRECT_URI,
+    response_type: 'code',
+    scope: 'identify guilds.members.read',
+    state: 'apply',
+  });
+
+  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
+});
+
 // Step 2: Handle Discord callback
 router.get('/discord/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
+  const isApplyFlow = state === 'apply';
+
   if (!code) {
-    return res.redirect(`${FRONTEND_ORIGIN}/login?error=no_code`);
+    const dest = isApplyFlow ? `${FRONTEND_ORIGIN}/apply?error=no_code` : `${FRONTEND_ORIGIN}/login?error=no_code`;
+    return res.redirect(dest);
   }
 
   const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, DISCORD_GUILD_ID, DISCORD_ROLE_PERSONNEL } = process.env;
@@ -202,7 +225,8 @@ router.get('/discord/callback', async (req, res) => {
 
     if (!tokens) {
       console.error('[DISCORD] Step 1 FAILED: token exchange returned null');
-      return res.redirect(`${FRONTEND_ORIGIN}/login?error=token_failed`);
+      const dest = isApplyFlow ? `${FRONTEND_ORIGIN}/apply?error=token_failed` : `${FRONTEND_ORIGIN}/login?error=token_failed`;
+      return res.redirect(dest);
     }
 
     // Fetch user profile
@@ -211,10 +235,30 @@ router.get('/discord/callback', async (req, res) => {
     });
     if (!userRes.ok) {
       console.error(`[DISCORD] Step 2 FAILED: /users/@me returned ${userRes.status}`);
-      return res.redirect(`${FRONTEND_ORIGIN}/login?error=user_fetch_failed`);
+      const dest = isApplyFlow ? `${FRONTEND_ORIGIN}/apply?error=user_fetch_failed` : `${FRONTEND_ORIGIN}/login?error=user_fetch_failed`;
+      return res.redirect(dest);
     }
     const discordUser = await userRes.json();
-    console.log(`[DISCORD] OAuth attempt: id=${discordUser.id} username=${discordUser.username}`);
+    console.log(`[DISCORD] OAuth attempt: id=${discordUser.id} username=${discordUser.username} flow=${isApplyFlow ? 'apply' : 'login'}`);
+
+    // ── Apply portal flow: skip Personnel role check, just confirm guild membership ──
+    if (isApplyFlow) {
+      if (DISCORD_GUILD_ID) {
+        const memberRes = await fetch(`${DISCORD_API}/users/@me/guilds/${DISCORD_GUILD_ID}/member`, {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+        });
+        if (!memberRes.ok) {
+          return res.redirect(`${FRONTEND_ORIGIN}/apply?error=not_in_server`);
+        }
+      }
+
+      const params = new URLSearchParams({
+        discord_id:       discordUser.id,
+        discord_username: discordUser.username,
+        discord_avatar:   discordUser.avatar || '',
+      });
+      return res.redirect(`${FRONTEND_ORIGIN}/apply?${params}`);
+    }
 
     // Fetch guild member info to check roles
     let hasPersonnelRole = true; // Default true if role check is not configured
