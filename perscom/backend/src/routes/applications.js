@@ -66,6 +66,8 @@ router.get('/status', (req, res) => {
 // ── POST /api/applications (public) ──────────────────────────────────────────
 // Submit an application.
 router.post('/', (req, res) => {
+  try {
+  const body = req.body || {};
   const {
     discord_id,
     discord_username,
@@ -83,13 +85,13 @@ router.post('/', (req, res) => {
     why_join,
     long_term_commitment,
     na_timezone,
-  } = req.body;
+  } = body;
 
   if (!discord_id) {
     return res.status(400).json({ error: 'Discord ID is required' });
   }
 
-  try {
+  {
     const db = getDb();
 
     // Check for existing pending or accepted application
@@ -151,7 +153,7 @@ router.post('/', (req, res) => {
     );
 
     return res.status(201).json({ id: result.lastInsertRowid });
-  } catch (err) {
+  } } catch (err) {
     console.error('[APPLICATIONS] submit error:', err.message, err.stack);
     return res.status(500).json({ error: err.message || 'Server error' });
   }
