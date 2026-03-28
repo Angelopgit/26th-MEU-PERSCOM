@@ -94,10 +94,10 @@ router.get('/stats', authenticate, (req, res) => {
 
   // Next upcoming operation or training
   const nextOp = db.prepare(`
-    SELECT id, title, type, start_date, image_url, discord_message_id
+    SELECT id, title, type, start_date, start_time, image_url, discord_message_id
     FROM operations
     WHERE date(start_date) >= date('now')
-    ORDER BY start_date ASC
+    ORDER BY start_date ASC, start_time ASC
     LIMIT 1
   `).get() || null;
 

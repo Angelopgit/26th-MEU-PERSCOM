@@ -66,13 +66,34 @@ function StatCard({ label, value, icon: Icon, color = 'green', sub, delta, delta
   );
 }
 
+// Convert a date string (YYYY-MM-DD) + optional time string (HH:MM) in Eastern Time
+// to a JS Date (correct UTC moment, handles EST/EDT automatically).
+function estToDate(dateStr, timeStr) {
+  if (!dateStr) return null;
+  const time = timeStr || '00:00';
+  const naiveMs = Date.parse(`${dateStr}T${time}:00Z`);
+  if (isNaN(naiveMs)) return null;
+  const naiveDate = new Date(naiveMs);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(naiveDate);
+  const p = {};
+  parts.forEach(x => { p[x.type] = x.value; });
+  const etAsUtcMs = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+  return new Date(naiveMs + (naiveMs - etAsUtcMs));
+}
+
 // ── Countdown Widget ──────────────────────────────────────────────────────────
 function CountdownWidget({ nextOp }) {
   const [timeLeft, setTimeLeft] = useState(null);
 
   useEffect(() => {
     if (!nextOp) return;
-    const target = new Date(nextOp.start_date + 'T00:00:00');
+    const target = estToDate(nextOp.start_date, nextOp.start_time);
+    if (!target) return;
     const tick = () => {
       const diff = target - Date.now();
       if (diff <= 0) { setTimeLeft({ d: 0, h: 0, m: 0, s: 0 }); return; }
@@ -123,6 +144,11 @@ function CountdownWidget({ nextOp }) {
             <div className="text-[#dbeafe] text-sm font-medium leading-tight mt-1.5">{nextOp.title}</div>
             <div className="text-[#4a6fa5] text-[10px] font-mono mt-0.5">
               {format(parseISO(nextOp.start_date), 'MMM dd, yyyy')}
+              {nextOp.start_time && (
+                <span className="ml-1.5 text-[#3b82f6]">
+                  {nextOp.start_time} <span className="text-[#2a4a80]">EST</span>
+                </span>
+              )}
             </div>
           </div>
           {timeLeft && (
@@ -358,7 +384,11 @@ export default function Dashboard() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => {
+    fetchStats();
+    const id = setInterval(fetchStats, 60_000);
+    return () => clearInterval(id);
+  }, [fetchStats]);
 
   const handleDeleteAnn = async (id) => {
     if (!confirm('Delete this announcement?')) return;
