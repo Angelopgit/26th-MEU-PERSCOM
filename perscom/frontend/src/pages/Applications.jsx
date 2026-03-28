@@ -468,6 +468,30 @@ export default function Applications() {
         </div>
       </div>
 
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { key: 'pending',  label: 'Unassessed',     note: 'Awaiting review',  color: 'border-amber-800/40  bg-amber-950/20  text-amber-400',  num: 'text-amber-300'  },
+          { key: 'accepted', label: 'Approved',        note: 'Total accepted',   color: 'border-green-800/40  bg-green-950/20  text-green-400',  num: 'text-green-300'  },
+          { key: 'rejected', label: 'Rejected',        note: 'Total denied',     color: 'border-red-800/40    bg-red-950/20    text-red-400',    num: 'text-red-300'    },
+          { key: 'review',   label: 'Further Review',  note: 'Needs more info',  color: 'border-yellow-800/40 bg-yellow-950/20 text-yellow-400', num: 'text-yellow-300' },
+        ].map(({ key, label, note, color, num }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`text-left px-4 py-3 rounded-sm border transition-all ${color} ${
+              activeTab === key ? 'ring-1 ring-inset ring-white/10' : 'hover:brightness-125'
+            }`}
+          >
+            <div className={`font-mono text-2xl font-bold tabular-nums leading-none mb-1 ${num}`}>
+              {counts[key] ?? 0}
+            </div>
+            <div className="font-mono text-[10px] tracking-wider uppercase">{label}</div>
+            <div className="font-mono text-[9px] opacity-50 mt-0.5">{note}</div>
+          </button>
+        ))}
+      </div>
+
       {/* Tabs */}
       <div className="flex flex-wrap gap-1.5">
         {TABS.map(tab => (

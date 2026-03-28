@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Eye, Menu } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 const PAGE_TITLES = {
   '/':            'Dashboard',
@@ -31,7 +32,7 @@ function fmtTime(date, tz) {
 
 export default function TopBar({ onMenuClick }) {
   const location = useLocation();
-  const { adminAlias, isGuest } = useAuth();
+  const { adminAlias, isGuest, isStaff } = useAuth();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -109,6 +110,9 @@ export default function TopBar({ onMenuClick }) {
             </div>
           </>
         )}
+
+        {/* Notification bell — staff only */}
+        {isStaff && <NotificationBell />}
 
         {/* Online indicator */}
         <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />

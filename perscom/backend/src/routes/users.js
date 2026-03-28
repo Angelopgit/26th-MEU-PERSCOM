@@ -48,6 +48,17 @@ router.patch('/:id/role', authenticate, requireAdmin, (req, res) => {
     req.user.id
   );
 
+  // Sync S-1 Discord role when granting/revoking moderator
+  const DISCORD_ROLE_MODERATOR = process.env.DISCORD_ROLE_MODERATOR;
+  if (DISCORD_ROLE_MODERATOR && user.discord_id) {
+    const { setMemberRole } = require('../discord/bot');
+    if (role === 'moderator' && oldRole !== 'moderator') {
+      setMemberRole(user.discord_id, DISCORD_ROLE_MODERATOR, true).catch(() => {});
+    } else if (oldRole === 'moderator' && role !== 'moderator') {
+      setMemberRole(user.discord_id, DISCORD_ROLE_MODERATOR, false).catch(() => {});
+    }
+  }
+
   res.json({ success: true, id: user.id, role });
 });
 

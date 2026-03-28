@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { getDb } = require('../config/database');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { addApprovedRoles, checkApplicantRoles } = require('../discord/bot');
-const { announceApplicationApproved, announceApplicationDenied } = require('../discord/announcer');
+const { announceApplicationSubmitted, announceApplicationApproved, announceApplicationDenied } = require('../discord/announcer');
 
 const router = express.Router();
 
@@ -152,7 +152,17 @@ router.post('/', (req, res) => {
       na_timezone ? 1 : 0,
     );
 
-    return res.status(201).json({ id: result.lastInsertRowid });
+    const appId = result.lastInsertRowid;
+
+    // Notify the applicant on Discord (non-blocking)
+    announceApplicationSubmitted(
+      discord_id,
+      discord_username || 'unknown',
+      { first_name, last_name, platform, desired_role, age },
+      appId,
+    ).catch(() => {});
+
+    return res.status(201).json({ id: appId });
   } } catch (err) {
     console.error('[APPLICATIONS] submit error:', err.message, err.stack);
     return res.status(500).json({ error: err.message || 'Server error' });

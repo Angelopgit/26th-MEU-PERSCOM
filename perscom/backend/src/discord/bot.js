@@ -91,10 +91,42 @@ async function startBot() {
 
   // ── Bidirectional rank sync — Discord role changes → PERSCOM ──────────────
   // When someone manually adds/removes a rank role on Discord, sync it back to PERSCOM.
+  // Also handles S-1 role removal → downgrade PERSCOM moderator to marine.
   client.on('guildMemberUpdate', async (oldMember, newMember) => {
     try {
       const addedRoles   = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
       const removedRoles = oldMember.roles.cache.filter(r => !newMember.roles.cache.has(r.id));
+
+      // ── S-1 role removed → downgrade PERSCOM moderator to marine ──────────
+      const DISCORD_ROLE_MODERATOR = process.env.DISCORD_ROLE_MODERATOR;
+      if (DISCORD_ROLE_MODERATOR && removedRoles.has(DISCORD_ROLE_MODERATOR)) {
+        const db = getDb();
+        const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(newMember.user.id);
+        if (user && user.role === 'moderator') {
+          db.prepare("UPDATE users SET role = 'marine' WHERE id = ?").run(user.id);
+          logActivity(
+            'ROLE_CHANGED',
+            `${user.display_name}: moderator → marine (S-1 Discord role removed)`,
+            null
+          );
+          console.log(`[BOT] ${user.display_name} downgraded to marine — S-1 role removed on Discord`);
+        }
+      }
+
+      // ── S-1 role added → upgrade PERSCOM role to moderator ────────────────
+      if (DISCORD_ROLE_MODERATOR && addedRoles.has(DISCORD_ROLE_MODERATOR)) {
+        const db = getDb();
+        const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(newMember.user.id);
+        if (user && user.role === 'marine') {
+          db.prepare("UPDATE users SET role = 'moderator' WHERE id = ?").run(user.id);
+          logActivity(
+            'ROLE_CHANGED',
+            `${user.display_name}: marine → moderator (S-1 Discord role added)`,
+            null
+          );
+          console.log(`[BOT] ${user.display_name} upgraded to moderator — S-1 role added on Discord`);
+        }
+      }
 
       const addedRankRole = addedRoles.find(r => RANKS.includes(r.name));
       if (!addedRankRole && !removedRoles.find(r => RANKS.includes(r.name))) return;
@@ -320,4 +352,26 @@ async function addApprovedRoles(discordId) {
   }
 }
 
-module.exports = { startBot, getClient, getMemberRoles, getGuildRoles, checkApplicantRoles, addApprovedRoles };
+/**
+ * Add or remove a specific Discord role from a guild member.
+ * Used to sync PERSCOM role changes (e.g., grant/revoke S-1 role when moderator is set).
+ */
+async function setMemberRole(discordUserId, roleId, add = true) {
+  if (!client || !process.env.DISCORD_GUILD_ID || !roleId || !discordUserId) return false;
+  try {
+    const guild  = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+    const member = await guild.members.fetch(discordUserId);
+    if (add) {
+      await member.roles.add(roleId);
+    } else {
+      await member.roles.remove(roleId);
+    }
+    console.log(`[BOT] ${add ? 'Added' : 'Removed'} role ${roleId} ${add ? 'to' : 'from'} ${discordUserId}`);
+    return true;
+  } catch (err) {
+    console.error(`[BOT] setMemberRole error (add=${add}):`, err.message);
+    return false;
+  }
+}
+
+module.exports = { startBot, getClient, getMemberRoles, getGuildRoles, checkApplicantRoles, addApprovedRoles, setMemberRole };

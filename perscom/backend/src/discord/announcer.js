@@ -263,6 +263,39 @@ async function announceEvent(operation) {
   }
 }
 
+// ── Application Submitted ─────────────────────────────────────────────────────
+// Sent to the applicant in the recruit-hall channel when their application is received.
+// appData: { first_name, last_name, platform, desired_role, age }
+async function announceApplicationSubmitted(discordUserId, discordUsername, appData, appId) {
+  const channelId = process.env.DISCORD_RECRUIT_HALL_CHANNEL_ID;
+  const channel = await getChannel(channelId);
+  if (!channel) return;
+
+  const fullName = `${appData.first_name} ${appData.last_name}`.trim();
+
+  const embed = new EmbedBuilder()
+    .setColor(0x3b82f6)
+    .setAuthor({ name: '📋 APPLICATION RECEIVED — 26th MEU (SOC)' })
+    .setTitle(fullName)
+    .setDescription(`<@${discordUserId}> your application has been received and is **under review**.\nCommand Staff will contact you within **24–48 hours**.`)
+    .addFields(
+      { name: 'Discord',       value: `@${discordUsername}`,           inline: true },
+      { name: 'Platform',      value: appData.platform || 'N/A',       inline: true },
+      { name: 'Desired Role',  value: appData.desired_role || 'N/A',   inline: true },
+      { name: 'Age',           value: String(appData.age || 'N/A'),     inline: true },
+      { name: 'Application #', value: `#${appId}`,                     inline: true },
+    )
+    .setFooter({ text: 'PERSCOM — 26th MEU (SOC) | Do not DM staff to ask about your application status.' })
+    .setTimestamp();
+
+  await channel.send({
+    content: `<@${discordUserId}> — Your application to the **26th MEU (SOC)** has been received! Stand by for review.`,
+    embeds: [embed],
+  }).catch(err => {
+    console.error('[ANNOUNCER] app submitted:', err.message);
+  });
+}
+
 // ── Application Approved ──────────────────────────────────────────────────────
 async function announceApplicationApproved(discordUserId, marineName) {
   const channelId = process.env.DISCORD_RECRUIT_HALL_CHANNEL_ID;
@@ -275,12 +308,13 @@ async function announceApplicationApproved(discordUserId, marineName) {
     .setDescription(`<@${discordUserId}> your application has been **approved**! Welcome to the 26th MEU (SOC).`)
     .addFields(
       { name: 'Next Step', value: 'Report to this channel and attend a **School of Infantry** class.', inline: false },
-      { name: 'Your Rank', value: 'E1 | Recruit', inline: true },
+      { name: 'Your Rank', value: 'E-1 | Recruit', inline: true },
+      { name: 'PERSCOM Access', value: 'Login at the PERSCOM portal with your Discord account.', inline: false },
     )
     .setFooter({ text: 'PERSCOM — 26th MEU (SOC)' })
     .setTimestamp();
   await channel.send({
-    content: `<@${discordUserId}> — **Application Approved** — Report to #recruit-hall and attend a School of Infantry class.`,
+    content: `<@${discordUserId}> — 🎉 **Application Approved!** Welcome to the 26th MEU (SOC). Report to this channel and await your School of Infantry class.`,
     embeds: [embed],
   }).catch(err => {
     console.error('[ANNOUNCER] app approved:', err.message);
@@ -295,15 +329,15 @@ async function announceApplicationDenied(discordUserId, reason) {
   const embed = new EmbedBuilder()
     .setColor(0xef4444)
     .setAuthor({ name: '❌ APPLICATION DENIED — 26th MEU (SOC)' })
-    .setDescription(`<@${discordUserId}> your application has been reviewed and was not accepted at this time.`)
+    .setDescription(`<@${discordUserId}> your application has been reviewed and was **not accepted** at this time.`)
     .addFields(
-      { name: 'Reason', value: reason || 'No reason provided.', inline: false },
-      { name: 'Reapply', value: 'You may reapply in **72 hours**.', inline: false },
+      { name: 'Reason',  value: reason || 'No reason provided.',  inline: false },
+      { name: 'Reapply', value: 'You may reapply after **72 hours** have passed.', inline: false },
     )
     .setFooter({ text: 'PERSCOM — 26th MEU (SOC)' })
     .setTimestamp();
   await channel.send({
-    content: `<@${discordUserId}> — Application Denied. You may reapply in 72 hours.`,
+    content: `<@${discordUserId}> — Your application to the 26th MEU (SOC) was not accepted. See details below.`,
     embeds: [embed],
   }).catch(err => {
     console.error('[ANNOUNCER] app denied:', err.message);
@@ -317,6 +351,7 @@ module.exports = {
   announceOrbatAssignment,
   announceStatusChange,
   announceEvent,
+  announceApplicationSubmitted,
   announceApplicationApproved,
   announceApplicationDenied,
 };
