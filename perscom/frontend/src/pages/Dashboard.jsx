@@ -343,7 +343,7 @@ function PersonnelChart({ data }) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const { isAdmin } = useAuth();
+  const { canEdit: isAdmin } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAnnModal, setShowAnnModal] = useState(false);

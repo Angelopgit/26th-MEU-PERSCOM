@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ router.get('/latest', authenticate, (req, res) => {
   res.json(announcement || null);
 });
 
-router.post('/', authenticate, requireAdmin, (req, res) => {
+router.post('/', authenticate, requireStaff, (req, res) => {
   const { title, message } = req.body;
   if (!title || !message) {
     return res.status(400).json({ error: 'Title and message are required' });
@@ -48,7 +48,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   res.status(201).json(announcement);
 });
 
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const ann = db.prepare('SELECT * FROM announcements WHERE id = ?').get(req.params.id);
   if (!ann) return res.status(404).json({ error: 'Announcement not found' });

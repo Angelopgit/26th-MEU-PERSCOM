@@ -357,7 +357,7 @@ function MemberStatusDropdown({ person, onChanged }) {
 }
 
 export default function Personnel() {
-  const { isAdmin, isGuest } = useAuth();
+  const { canEdit, isGuest } = useAuth();
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -504,7 +504,7 @@ export default function Personnel() {
             ))}
           </div>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <button onClick={() => setModal('add')} className="btn-primary flex items-center gap-2 shrink-0">
             <UserPlus size={13} /> Add Personnel
           </button>
@@ -527,7 +527,7 @@ export default function Personnel() {
           <div className="w-20 section-header hidden md:block">TIG</div>
           <div className="w-16 section-header hidden lg:block">Awards</div>
           <div className="w-20 section-header hidden sm:block">Type</div>
-          {isAdmin && <div className="w-32 section-header text-right">Actions</div>}
+          {canEdit && <div className="w-32 section-header text-right">Actions</div>}
         </div>
 
         {loading ? (
@@ -595,7 +595,7 @@ export default function Personnel() {
                   </span>
                 </div>
 
-                {isAdmin && (
+                {canEdit && (
                   <div className="w-32 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {person.status === 'Marine' && (
                       <>

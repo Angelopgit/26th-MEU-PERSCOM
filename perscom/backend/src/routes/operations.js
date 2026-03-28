@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { logActivity } = require('../utils/logActivity');
 const { announceEvent } = require('../discord/announcer');
@@ -33,7 +33,7 @@ router.get('/', authenticate, (req, res) => {
   res.json(operations);
 });
 
-router.post('/', authenticate, requireAdmin, (req, res) => {
+router.post('/', authenticate, requireStaff, (req, res) => {
   const { title, description, start_date, start_time, end_date, type } = req.body;
   if (!title || !start_date) {
     return res.status(400).json({ error: 'Title and start date are required' });
@@ -59,7 +59,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   res.status(201).json(newOp);
 });
 
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+router.put('/:id', authenticate, requireStaff, (req, res) => {
   const { title, description, start_date, start_time, end_date, type } = req.body;
   const db = getDb();
 
@@ -83,7 +83,7 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   res.json(getOpWithCreator(db, req.params.id));
 });
 
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const op = db.prepare('SELECT * FROM operations WHERE id = ?').get(req.params.id);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
@@ -98,7 +98,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // Upload image for an operation (admin only)
-router.post('/:id/image', authenticate, requireAdmin, upload.single('image'), upload.compressUploadedFile, (req, res) => {
+router.post('/:id/image', authenticate, requireStaff, upload.single('image'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file provided' });
 
   const db = getDb();
@@ -119,7 +119,7 @@ router.post('/:id/image', authenticate, requireAdmin, upload.single('image'), up
 });
 
 // Delete image from operation (admin only)
-router.delete('/:id/image', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id/image', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const op = db.prepare('SELECT * FROM operations WHERE id = ?').get(req.params.id);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
@@ -151,7 +151,7 @@ router.get('/:id/attendance', authenticate, (req, res) => {
 });
 
 // POST /api/operations/:id/attendance — mark a marine as attended (admin/mod)
-router.post('/:id/attendance', authenticate, requireAdmin, (req, res) => {
+router.post('/:id/attendance', authenticate, requireStaff, (req, res) => {
   const { personnel_id } = req.body;
   if (!personnel_id) return res.status(400).json({ error: 'personnel_id required' });
 
@@ -175,7 +175,7 @@ router.post('/:id/attendance', authenticate, requireAdmin, (req, res) => {
 });
 
 // DELETE /api/operations/:id/attendance/:personnel_id — remove attendance (admin/mod)
-router.delete('/:id/attendance/:personnel_id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id/attendance/:personnel_id', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const result = db.prepare(
     'DELETE FROM attendance WHERE operation_id = ? AND personnel_id = ?'

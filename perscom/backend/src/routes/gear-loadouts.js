@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -30,7 +30,7 @@ router.get('/', authenticate, (req, res) => {
 });
 
 // POST /api/gear-loadouts — admin only
-router.post('/', authenticate, requireAdmin, (req, res) => {
+router.post('/', authenticate, requireStaff, (req, res) => {
   const { name, description } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
@@ -50,7 +50,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
 });
 
 // PUT /api/gear-loadouts/:id — admin only
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+router.put('/:id', authenticate, requireStaff, (req, res) => {
   const { name, description } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
@@ -66,7 +66,7 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // DELETE /api/gear-loadouts/:id — admin only (cascade deletes items)
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const loadout = db.prepare('SELECT name FROM gear_loadouts WHERE id = ?').get(req.params.id);
   if (!loadout) return res.status(404).json({ error: 'Loadout not found' });
@@ -82,7 +82,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 // ── Items ─────────────────────────────────────────────────────────────────────
 
 // POST /api/gear-loadouts/:id/items — admin only
-router.post('/:id/items', authenticate, requireAdmin, (req, res) => {
+router.post('/:id/items', authenticate, requireStaff, (req, res) => {
   const { name, description } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Item name is required' });
 
@@ -109,7 +109,7 @@ router.post('/:id/items', authenticate, requireAdmin, (req, res) => {
 });
 
 // DELETE /api/gear-loadouts/:id/items/:itemId — admin only
-router.delete('/:id/items/:itemId', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id/items/:itemId', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM gear_items WHERE id = ? AND loadout_id = ?').run(
     req.params.itemId,

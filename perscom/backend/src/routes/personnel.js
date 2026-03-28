@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 const { logActivity } = require('../utils/logActivity');
 const { syncRankToDiscord } = require('../discord/sync');
 const { getMemberRoles } = require('../discord/bot');
@@ -139,7 +139,7 @@ router.get('/:id/discord-roles', authenticate, async (req, res) => {
 });
 
 // Create personnel
-router.post('/', authenticate, requireAdmin, (req, res) => {
+router.post('/', authenticate, requireStaff, (req, res) => {
   const { name, status, rank, date_of_entry, member_status } = req.body;
   if (!name || !date_of_entry) {
     return res.status(400).json({ error: 'Name and date of entry are required' });
@@ -171,7 +171,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
 });
 
 // Update personnel
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+router.put('/:id', authenticate, requireStaff, (req, res) => {
   const { name, status, rank, date_of_entry } = req.body;
   const db = getDb();
 
@@ -282,7 +282,7 @@ router.patch('/:id/member-status', authenticate, (req, res) => {
 });
 
 // Delete personnel
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
@@ -294,7 +294,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // Promote one rank
-router.post('/:id/promote', authenticate, requireAdmin, (req, res) => {
+router.post('/:id/promote', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
@@ -333,7 +333,7 @@ router.post('/:id/promote', authenticate, requireAdmin, (req, res) => {
 });
 
 // Demote one rank
-router.post('/:id/demote', authenticate, requireAdmin, (req, res) => {
+router.post('/:id/demote', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
@@ -370,7 +370,7 @@ router.post('/:id/demote', authenticate, requireAdmin, (req, res) => {
 });
 
 // Add award
-router.post('/:id/awards', authenticate, requireAdmin, (req, res) => {
+router.post('/:id/awards', authenticate, requireStaff, (req, res) => {
   const { name, awarded_at } = req.body;
   if (!name) return res.status(400).json({ error: 'Award name required' });
 
@@ -400,7 +400,7 @@ router.post('/:id/awards', authenticate, requireAdmin, (req, res) => {
 });
 
 // Remove award
-router.delete('/:id/awards/:awardId', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id/awards/:awardId', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const award = db.prepare('SELECT * FROM awards WHERE id = ? AND personnel_id = ?').get(
     req.params.awardId,

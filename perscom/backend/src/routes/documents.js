@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { logActivity } = require('../utils/logActivity');
 
@@ -48,7 +48,7 @@ router.get('/:id', authenticate, (req, res) => {
 });
 
 // POST /api/documents — admin only
-router.post('/', authenticate, requireAdmin, (req, res) => {
+router.post('/', authenticate, requireStaff, (req, res) => {
   const { title, content } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
@@ -68,7 +68,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
 });
 
 // PUT /api/documents/:id — admin only
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+router.put('/:id', authenticate, requireStaff, (req, res) => {
   const { title, content } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
@@ -91,7 +91,7 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // DELETE /api/documents/:id — admin only
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireStaff, (req, res) => {
   try {
     const db = getDb();
     const doc = db.prepare('SELECT title FROM documents WHERE id = ?').get(req.params.id);
@@ -115,7 +115,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 // POST /api/documents/:id/images — upload image (admin only)
-router.post('/:id/images', authenticate, requireAdmin, upload.documentUpload.single('image'), upload.compressUploadedFile, (req, res) => {
+router.post('/:id/images', authenticate, requireStaff, upload.documentUpload.single('image'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
   const db = getDb();
@@ -131,7 +131,7 @@ router.post('/:id/images', authenticate, requireAdmin, upload.documentUpload.sin
 });
 
 // POST /api/documents/:id/files — upload PDF or DOCX (admin only)
-router.post('/:id/files', authenticate, requireAdmin, upload.docFileUpload.single('file'), (req, res) => {
+router.post('/:id/files', authenticate, requireStaff, upload.docFileUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
   const db = getDb();
@@ -148,7 +148,7 @@ router.post('/:id/files', authenticate, requireAdmin, upload.docFileUpload.singl
 });
 
 // DELETE /api/documents/:id/files/:fileId — delete uploaded file (admin only)
-router.delete('/:id/files/:fileId', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id/files/:fileId', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const file = db.prepare(
     'SELECT * FROM document_files WHERE id = ? AND document_id = ?'
@@ -163,7 +163,7 @@ router.delete('/:id/files/:fileId', authenticate, requireAdmin, (req, res) => {
 });
 
 // DELETE /api/documents/:id/images/:imageId — delete image (admin only)
-router.delete('/:id/images/:imageId', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id/images/:imageId', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const img = db.prepare(
     'SELECT * FROM document_images WHERE id = ? AND document_id = ?'

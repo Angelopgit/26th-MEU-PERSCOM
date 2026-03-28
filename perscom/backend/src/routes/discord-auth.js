@@ -190,12 +190,15 @@ router.get('/discord-apply', (req, res) => {
     return res.status(500).json({ error: 'Discord OAuth is not configured' });
   }
 
+  // mode=status → check existing application; default → apply flow
+  const state = req.query.mode === 'status' ? 'apply_status' : 'apply';
+
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     redirect_uri: DISCORD_REDIRECT_URI,
     response_type: 'code',
     scope: 'identify guilds.members.read',
-    state: 'apply',
+    state,
   });
 
   res.redirect(`https://discord.com/oauth2/authorize?${params}`);
@@ -204,10 +207,13 @@ router.get('/discord-apply', (req, res) => {
 // Step 2: Handle Discord callback
 router.get('/discord/callback', async (req, res) => {
   const { code, state } = req.query;
-  const isApplyFlow = state === 'apply';
+  const isApplyFlow  = state === 'apply';
+  const isStatusFlow = state === 'apply_status';
 
   if (!code) {
-    const dest = isApplyFlow ? `${FRONTEND_ORIGIN}/apply?error=no_code` : `${FRONTEND_ORIGIN}/login?error=no_code`;
+    const dest = (isApplyFlow || isStatusFlow)
+      ? `${FRONTEND_ORIGIN}/apply?error=no_code`
+      : `${FRONTEND_ORIGIN}/login?error=no_code`;
     return res.redirect(dest);
   }
 
@@ -225,7 +231,9 @@ router.get('/discord/callback', async (req, res) => {
 
     if (!tokens) {
       console.error('[DISCORD] Step 1 FAILED: token exchange returned null');
-      const dest = isApplyFlow ? `${FRONTEND_ORIGIN}/apply?error=token_failed` : `${FRONTEND_ORIGIN}/login?error=token_failed`;
+      const dest = (isApplyFlow || isStatusFlow)
+        ? `${FRONTEND_ORIGIN}/apply?error=token_failed`
+        : `${FRONTEND_ORIGIN}/login?error=token_failed`;
       return res.redirect(dest);
     }
 
@@ -235,11 +243,23 @@ router.get('/discord/callback', async (req, res) => {
     });
     if (!userRes.ok) {
       console.error(`[DISCORD] Step 2 FAILED: /users/@me returned ${userRes.status}`);
-      const dest = isApplyFlow ? `${FRONTEND_ORIGIN}/apply?error=user_fetch_failed` : `${FRONTEND_ORIGIN}/login?error=user_fetch_failed`;
+      const dest = (isApplyFlow || isStatusFlow)
+        ? `${FRONTEND_ORIGIN}/apply?error=user_fetch_failed`
+        : `${FRONTEND_ORIGIN}/login?error=user_fetch_failed`;
       return res.redirect(dest);
     }
     const discordUser = await userRes.json();
-    console.log(`[DISCORD] OAuth attempt: id=${discordUser.id} username=${discordUser.username} flow=${isApplyFlow ? 'apply' : 'login'}`);
+    console.log(`[DISCORD] OAuth attempt: id=${discordUser.id} username=${discordUser.username} flow=${isApplyFlow ? 'apply' : isStatusFlow ? 'status' : 'login'}`);
+
+    // ── Status check flow: just need Discord ID, no guild check required ──
+    if (isStatusFlow) {
+      const params = new URLSearchParams({
+        discord_id:       discordUser.id,
+        discord_username: discordUser.username,
+        check_status:     '1',
+      });
+      return res.redirect(`${FRONTEND_ORIGIN}/apply?${params}`);
+    }
 
     // ── Apply portal flow: skip Personnel role check, just confirm guild membership ──
     if (isApplyFlow) {
@@ -262,6 +282,7 @@ router.get('/discord/callback', async (req, res) => {
 
     // Fetch guild member info to check roles
     let hasPersonnelRole = true; // Default true if role check is not configured
+    let guildMember = null;      // Saved for role-based PERSCOM assignment below
 
     // Users in DISCORD_ADMIN_IDS bypass the role gate entirely
     const isAdminUser = ADMIN_DISCORD_IDS.includes(discordUser.id);
@@ -276,17 +297,17 @@ router.get('/discord/callback', async (req, res) => {
         return res.redirect(`${FRONTEND_ORIGIN}/login?error=not_in_server`);
       }
 
-      const member = await memberRes.json();
+      guildMember = await memberRes.json();
 
       // Accept Personnel role OR Staff role (DISCORD_ROLE_STAFF env var)
       // This allows users with a Staff/Command role to log in even without the Personnel role
       const { DISCORD_ROLE_STAFF } = process.env;
       if (DISCORD_ROLE_PERSONNEL) {
-        const hasPersonnel = member.roles.includes(DISCORD_ROLE_PERSONNEL);
-        const hasStaff     = DISCORD_ROLE_STAFF ? member.roles.includes(DISCORD_ROLE_STAFF) : false;
+        const hasPersonnel = guildMember.roles.includes(DISCORD_ROLE_PERSONNEL);
+        const hasStaff     = DISCORD_ROLE_STAFF ? guildMember.roles.includes(DISCORD_ROLE_STAFF) : false;
         hasPersonnelRole   = hasPersonnel || hasStaff;
         if (!hasPersonnelRole) {
-          console.warn(`[DISCORD] Step 4 FAILED: user ${discordUser.id} (${discordUser.username}) missing required role. Has: [${member.roles.join(', ')}]`);
+          console.warn(`[DISCORD] Step 4 FAILED: user ${discordUser.id} (${discordUser.username}) missing required role. Has: [${guildMember.roles.join(', ')}]`);
         } else if (hasStaff && !hasPersonnel) {
           console.log(`[DISCORD] user ${discordUser.id} admitted via Staff role`);
         }
@@ -299,6 +320,13 @@ router.get('/discord/callback', async (req, res) => {
       return res.redirect(`${FRONTEND_ORIGIN}/login?error=no_personnel_role`);
     }
 
+    // Check if user holds the S-1 / Moderator Discord role (DISCORD_ROLE_MODERATOR env var)
+    // If so, they are automatically granted moderator access in PERSCOM on login
+    const { DISCORD_ROLE_MODERATOR } = process.env;
+    const hasModRole = DISCORD_ROLE_MODERATOR && guildMember
+      ? guildMember.roles.includes(DISCORD_ROLE_MODERATOR)
+      : false;
+
     // Look up existing user by discord_id
     const db = getDb();
     const existingUser = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(discordUser.id);
@@ -306,8 +334,12 @@ router.get('/discord/callback', async (req, res) => {
 
     if (existingUser) {
       // Returning user — update Discord info and issue session
-      // Auto-upgrade whitelisted Discord IDs to admin
-      const effectiveRole = ADMIN_DISCORD_IDS.includes(discordUser.id) ? 'admin' : existingUser.role;
+      // Priority: admin whitelist > S-1 Discord role > existing DB role
+      let effectiveRole = ADMIN_DISCORD_IDS.includes(discordUser.id) ? 'admin' : existingUser.role;
+      if (effectiveRole !== 'admin' && hasModRole && effectiveRole !== 'moderator') {
+        effectiveRole = 'moderator';
+        console.log(`[DISCORD] user ${discordUser.id} auto-promoted to moderator via S-1 Discord role`);
+      }
 
       db.prepare(`
         UPDATE users SET discord_username = ?, discord_avatar = ?,
@@ -347,6 +379,7 @@ router.get('/discord/callback', async (req, res) => {
       discord_access_token: tokens.access_token,
       discord_refresh_token: tokens.refresh_token || null,
       _registration: true,
+      _is_staff: hasModRole, // pre-compute moderator eligibility for the register endpoint
     };
 
     const regToken = jwt.sign(regPayload, process.env.JWT_SECRET, { expiresIn: '10m' });
@@ -357,7 +390,10 @@ router.get('/discord/callback', async (req, res) => {
 
   } catch (err) {
     console.error('[DISCORD] OAuth callback error:', err);
-    return res.redirect(`${FRONTEND_ORIGIN}/login?error=server_error`);
+    const dest = (isApplyFlow || isStatusFlow)
+      ? `${FRONTEND_ORIGIN}/apply?error=server_error`
+      : `${FRONTEND_ORIGIN}/login?error=server_error`;
+    return res.redirect(dest);
   }
 });
 
@@ -394,8 +430,10 @@ router.post('/discord/register', (req, res) => {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // Determine role — whitelisted Discord IDs get admin
-  const assignedRole = ADMIN_DISCORD_IDS.includes(regData.discord_id) ? 'admin' : 'marine';
+  // Determine role — whitelisted Discord IDs get admin, S-1 role holders get moderator
+  const assignedRole = ADMIN_DISCORD_IDS.includes(regData.discord_id)
+    ? 'admin'
+    : (regData._is_staff ? 'moderator' : 'marine');
 
   // Create personnel record
   const personnelResult = db.prepare(

@@ -39,6 +39,70 @@ const STATUS_CONFIG = {
   none:     { color: 'text-[#4a6fa5]',  bg: 'bg-[#090f1e] border-[#162448]',        label: 'NOT FOUND',       msg: 'No application found for this Discord ID.' },
 };
 
+// ── Status Screen (shown after Discord OAuth status check) ───────────────────
+function StatusScreen({ statusData, loading, discordUsername, onBack }) {
+  const cfg = statusData ? (STATUS_CONFIG[statusData.status] || STATUS_CONFIG.none) : null;
+
+  return (
+    <div className="anim-fadeslide">
+      <div className="text-center mb-6">
+        <div className="flex justify-center mb-4">
+          <Logo size={80} />
+        </div>
+        <div className="text-[#dbeafe] font-mono text-lg font-bold tracking-wider">APPLICATION STATUS</div>
+        <div className="text-[#3b82f6] font-mono text-[10px] tracking-widest mt-1">
+          // {discordUsername ? `@${discordUsername}` : 'DISCORD LOOKUP'}
+        </div>
+        <div className="w-full h-px mt-4" style={{ background: 'linear-gradient(to right, transparent, rgba(212,175,55,0.2), transparent)' }} />
+      </div>
+
+      <div className="bg-[#090f1e]/90 border border-[#162448] rounded-sm p-6 space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center gap-3 py-8 text-[#4a6fa5]">
+            <Loader2 size={18} className="animate-spin" />
+            <span className="font-mono text-xs tracking-widest">CHECKING STATUS...</span>
+          </div>
+        ) : cfg ? (
+          <div className={`border rounded-sm px-4 py-4 ${cfg.bg}`}>
+            <div className={`font-mono text-sm font-bold tracking-widest mb-2 ${cfg.color}`}>{cfg.label}</div>
+            {cfg.msg && <p className="text-[#dbeafe] text-sm">{cfg.msg}</p>}
+            {statusData.status === 'rejected' && statusData.denial_reason && (
+              <p className="text-[#dbeafe] text-xs mt-2">
+                <span className="text-red-400 font-mono">Reason:</span> {statusData.denial_reason}
+                <br />
+                <span className="text-[#4a6fa5]">You may reapply 72 hours after denial.</span>
+              </p>
+            )}
+            {statusData.submitted_at && (
+              <p className="text-[#4a6fa5] font-mono text-[10px] mt-2">
+                Submitted: {new Date(statusData.submitted_at).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className={`border rounded-sm px-4 py-4 ${STATUS_CONFIG.none.bg}`}>
+            <div className={`font-mono text-sm font-bold tracking-widest ${STATUS_CONFIG.none.color}`}>NO APPLICATION FOUND</div>
+            <p className="text-[#4a6fa5] text-xs mt-1">No application found for this Discord account.</p>
+          </div>
+        )}
+
+        {statusData?.status === 'accepted' && (
+          <Link to="/login" className="block w-full text-center btn-primary py-2 text-sm font-mono">
+            Login to PERSCOM →
+          </Link>
+        )}
+
+        <button
+          onClick={onBack}
+          className="w-full text-[#2a4a80] hover:text-[#4a6fa5] font-mono text-xs py-1.5 transition-colors"
+        >
+          ← Back
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Status Check Modal ────────────────────────────────────────────────────────
 function StatusModal({ onClose }) {
   const [discordId, setDiscordId] = useState('');
@@ -166,9 +230,7 @@ function DiscordIcon() {
 }
 
 // ── STEP 0: Discord OAuth Login ─────────────────────────────────────────────────
-function Step0({ onVerified, onStatusCheck, oauthError }) {
-  const [checking, setChecking] = useState(false);
-  const [alertType, setAlertType] = useState(null);
+function Step0({ onVerified, oauthError }) {
 
   const DISCORD_OAUTH_URL = `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}/api/auth/discord-apply`;
 
@@ -242,13 +304,13 @@ function Step0({ onVerified, onStatusCheck, oauthError }) {
           <div className="flex-1 h-px bg-[#162448]" />
         </div>
 
-        <button
-          onClick={onStatusCheck}
+        <a
+          href={`${DISCORD_OAUTH_URL}?mode=status`}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm border border-[#162448] hover:border-[#3b82f6]/30 text-[#4a6fa5] hover:text-[#93c5fd] transition-all text-sm font-mono"
         >
           <ClipboardList size={13} />
           CHECK APPLICATION STATUS
-        </button>
+        </a>
 
         <div className="text-center mt-4">
           <Link to="/login" className="text-[#1a2f55] hover:text-[#4a6fa5] font-mono text-[9px] transition-colors">
@@ -613,22 +675,38 @@ function Step3({ appId, onCheckStatus }) {
 
 // ── Main Apply Page ────────────────────────────────────────────────────────────
 export default function Apply() {
-  const [step, setStep]             = useState(0);
+  const [step, setStep]               = useState(0);
   const [discordData, setDiscordData] = useState(null);
-  const [appId, setAppId]           = useState(null);
-  const [showStatus, setShowStatus] = useState(false);
-  const [oauthError, setOauthError] = useState(null);
+  const [appId, setAppId]             = useState(null);
+  const [showStatus, setShowStatus]   = useState(false);
+  const [oauthError, setOauthError]   = useState(null);
+  const [statusData, setStatusData]   = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   // On mount, check if Discord OAuth redirected back with discord_id params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const discordId = params.get('discord_id');
-    const error     = params.get('error');
+    const discordId  = params.get('discord_id');
+    const error      = params.get('error');
+    const checkStatus = params.get('check_status');
 
     if (error) {
       setOauthError(error);
-      // Clean the URL
       window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (discordId && checkStatus === '1') {
+      // Status check flow — fetch and show status screen
+      window.history.replaceState({}, '', window.location.pathname);
+      const username = params.get('discord_username') || '';
+      setDiscordData({ discord_id: discordId, discord_username: username });
+      setStatusLoading(true);
+      setStep(4);
+      api.get(`/applications/status?discord_id=${encodeURIComponent(discordId)}`)
+        .then(res => setStatusData(res.data))
+        .catch(() => setStatusData({ status: 'none' }))
+        .finally(() => setStatusLoading(false));
       return;
     }
 
@@ -676,8 +754,16 @@ export default function Apply() {
         {step === 0 && (
           <Step0
             onVerified={data => { setDiscordData(data); setStep(1); }}
-            onStatusCheck={() => setShowStatus(true)}
             oauthError={oauthError}
+          />
+        )}
+
+        {step === 4 && (
+          <StatusScreen
+            statusData={statusData}
+            loading={statusLoading}
+            discordUsername={discordData?.discord_username}
+            onBack={() => { setStep(0); setStatusData(null); setDiscordData(null); }}
           />
         )}
 

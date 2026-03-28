@@ -118,7 +118,7 @@ function OpForm({ initial = BLANK, onSave, onCancel, saving }) {
 }
 
 function OpImageSection({ op, onImageUpdate }) {
-  const { isAdmin } = useAuth();
+  const { canEdit: isAdmin } = useAuth();
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState(false);
@@ -228,7 +228,7 @@ function RsvpBar({ op }) {
 }
 
 function AttendancePanel({ op }) {
-  const { isAdmin } = useAuth();
+  const { canEdit: isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [attendance, setAttendance] = useState([]);
   const [personnel, setPersonnel] = useState([]);
@@ -368,7 +368,7 @@ function AttendancePanel({ op }) {
 }
 
 export default function Operations() {
-  const { isAdmin } = useAuth();
+  const { canEdit: isAdmin } = useAuth();
   const [ops, setOps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('Upcoming');

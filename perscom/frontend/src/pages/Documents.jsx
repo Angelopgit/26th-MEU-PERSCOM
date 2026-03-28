@@ -585,7 +585,7 @@ const TABS = [
 ];
 
 export default function Documents() {
-  const { isAdmin } = useAuth();
+  const { canEdit: isAdmin } = useAuth();
   const [tab, setTab] = useState('documents');
 
   const [docs, setDocs]           = useState([]);

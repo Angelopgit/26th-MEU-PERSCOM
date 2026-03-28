@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
@@ -16,7 +16,7 @@ router.get('/', authenticate, (req, res) => {
 });
 
 // POST /api/spotlight — admin only
-router.post('/', authenticate, requireAdmin, upload.spotlightUpload.single('image'), upload.compressUploadedFile, (req, res) => {
+router.post('/', authenticate, requireStaff, upload.spotlightUpload.single('image'), upload.compressUploadedFile, (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
   const db = getDb();
   const imageUrl = `/uploads/${req.file.filename}`;
@@ -27,7 +27,7 @@ router.post('/', authenticate, requireAdmin, upload.spotlightUpload.single('imag
 });
 
 // DELETE /api/spotlight/:id — admin only
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireStaff, (req, res) => {
   const db = getDb();
   const img = db.prepare('SELECT * FROM spotlight_images WHERE id = ?').get(req.params.id);
   if (!img) return res.status(404).json({ error: 'Image not found' });
