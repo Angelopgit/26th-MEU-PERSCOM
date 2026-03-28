@@ -84,4 +84,35 @@ router.post('/sync-roles', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+const DEFAULT_PERMISSIONS = {
+  marine:    { personnel: true,  operations: true,  orbat: true,  documents: true,  gear_loadouts: true,  spotlight: true,  applications: false, settings: false },
+  moderator: { personnel: true,  operations: true,  orbat: true,  documents: true,  gear_loadouts: true,  spotlight: true,  applications: true,  settings: false },
+};
+
+// GET /api/settings/permissions — authenticated, returns role permissions object
+router.get('/permissions', authenticate, (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'role_permissions'").get();
+    const perms = row ? JSON.parse(row.value) : DEFAULT_PERMISSIONS;
+    res.json(perms);
+  } catch (err) {
+    res.json(DEFAULT_PERMISSIONS);
+  }
+});
+
+// PUT /api/settings/permissions — admin only
+router.put('/permissions', authenticate, requireAdmin, (req, res) => {
+  try {
+    const { marine, moderator } = req.body;
+    if (!marine || !moderator) return res.status(400).json({ error: 'marine and moderator required' });
+    const value = JSON.stringify({ marine, moderator });
+    const db = getDb();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('role_permissions', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

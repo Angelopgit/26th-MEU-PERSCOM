@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { storeToken } from '../utils/api';
-import { AlertCircle, Loader2, Eye, User, UserPlus } from 'lucide-react';
+import { AlertCircle, Loader2, Eye, User, UserPlus, ChevronDown } from 'lucide-react';
 import Modal from '../components/Modal';
 
 // ── Admin alias selector — shown after admin login ────────────────────────────
@@ -53,6 +53,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const [showAlias, setShowAlias] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // Clear stale guest sessions when the login page mounts so the cookie doesn't
   // interfere with a fresh login attempt.
@@ -201,68 +202,19 @@ export default function Login() {
         </div>
 
         {/* Auth card */}
-        <div className="bg-[#090f1e]/90 backdrop-blur-sm border border-[#162448] rounded-sm p-8">
-          <p className="text-[#1a2f55] font-mono text-[10px] uppercase tracking-widest mb-5">
+        <div className="bg-[#090f1e]/90 backdrop-blur-sm border border-[#162448] rounded-sm p-6 space-y-3">
+          <p className="text-[#1a2f55] font-mono text-[10px] uppercase tracking-widest">
             // AUTHENTICATION REQUIRED
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="label">Identifier</label>
-              <input
-                name="username"
-                type="text"
-                className="input-field"
-                placeholder="username"
-                value={form.username}
-                onChange={handleChange}
-                autoFocus
-                autoComplete="username"
-              />
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 text-xs bg-red-950/30 border border-red-900/40 px-3 py-2.5 rounded-sm">
+              <AlertCircle size={12} className="shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
+          )}
 
-            <div>
-              <label className="label">Authentication Key</label>
-              <input
-                name="password"
-                type="password"
-                className="input-field"
-                placeholder="••••••••"
-                value={form.password}
-                onChange={handleChange}
-                autoComplete="current-password"
-              />
-            </div>
-
-            {error && (
-              <div className="flex items-start gap-2 text-red-400 text-xs bg-red-950/30 border border-red-900/40 px-3 py-2.5 rounded-sm">
-                <AlertCircle size={12} className="shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !form.username || !form.password}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 mt-2"
-              data-sound="login"
-            >
-              {loading ? (
-                <><Loader2 size={13} className="animate-spin" />AUTHENTICATING...</>
-              ) : (
-                'AUTHENTICATE'
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px bg-[#162448]" />
-            <span className="text-[#1a2f55] font-mono text-[10px]">OR</span>
-            <div className="flex-1 h-px bg-[#162448]" />
-          </div>
-
-          {/* Discord OAuth */}
+          {/* Discord OAuth — primary */}
           <a
             href={`${import.meta.env.VITE_API_URL || '/api'}/auth/discord`}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm bg-[#5865F2] hover:bg-[#4752C4] text-white transition-all text-sm font-medium"
@@ -273,13 +225,11 @@ export default function Login() {
             </svg>
             SIGN IN WITH DISCORD
           </a>
-
-          <p className="text-[#1a2f55] text-[9px] font-mono text-center mt-2 leading-relaxed">
+          <p className="text-[#1a2f55] text-[9px] font-mono text-center">
             Requires 26th Marine Personnel Discord role
           </p>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-4">
+          <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-[#162448]" />
             <span className="text-[#1a2f55] font-mono text-[10px]">OR</span>
             <div className="flex-1 h-px bg-[#162448]" />
@@ -292,20 +242,15 @@ export default function Login() {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm border border-[#162448] hover:border-[#3b82f6]/30 text-[#4a6fa5] hover:text-[#93c5fd] transition-all text-sm font-mono"
             data-sound="boot"
           >
-            {guestLoading ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Eye size={13} />
-            )}
+            {guestLoading ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
             VIEW AS GUEST
           </button>
-
-          <p className="text-[#1a2f55] text-[9px] font-mono text-center mt-2 leading-relaxed">
+          <p className="text-[#1a2f55] text-[9px] font-mono text-center">
             Read-only access · Personnel &amp; Roster only
           </p>
 
           {/* Apply to join */}
-          <div className="flex items-center gap-3 my-4">
+          <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-[#162448]" />
             <span className="text-[#1a2f55] font-mono text-[10px]">NEW RECRUIT</span>
             <div className="flex-1 h-px bg-[#162448]" />
@@ -319,10 +264,56 @@ export default function Login() {
             <UserPlus size={13} />
             APPLY TO JOIN 26th MEU
           </Link>
-
-          <p className="text-[#1a2f55] text-[9px] font-mono text-center mt-2 leading-relaxed">
+          <p className="text-[#1a2f55] text-[9px] font-mono text-center">
             Requires Discord server membership
           </p>
+
+          {/* Collapsible password form */}
+          <button
+            onClick={() => setShowPasswordForm(v => !v)}
+            className="w-full flex items-center justify-center gap-1.5 text-[#1a2f55] hover:text-[#4a6fa5] font-mono text-[10px] transition-colors pt-1"
+          >
+            <ChevronDown size={11} className={`transition-transform ${showPasswordForm ? 'rotate-180' : ''}`} />
+            USE USERNAME &amp; PASSWORD
+          </button>
+
+          {showPasswordForm && (
+            <form onSubmit={handleSubmit} className="space-y-3 pt-1">
+              <div>
+                <label className="label">Identifier</label>
+                <input
+                  name="username"
+                  type="text"
+                  className="input-field"
+                  placeholder="username"
+                  value={form.username}
+                  onChange={handleChange}
+                  autoFocus
+                  autoComplete="username"
+                />
+              </div>
+              <div>
+                <label className="label">Authentication Key</label>
+                <input
+                  name="password"
+                  type="password"
+                  className="input-field"
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="current-password"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !form.username || !form.password}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
+                data-sound="login"
+              >
+                {loading ? <><Loader2 size={13} className="animate-spin" />AUTHENTICATING...</> : 'AUTHENTICATE'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

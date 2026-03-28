@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Settings as SettingsIcon, Upload, Trash2, Loader2, Image, CheckCircle,
-  Users, RefreshCw, Shield, TrendingUp, Plus, X,
+  Users, RefreshCw, Shield, TrendingUp, Plus, X, Lock,
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -186,6 +186,14 @@ export default function Settings() {
   const [addingRank, setAddingRank]                 = useState(false);
   const [discordRoles, setDiscordRoles]             = useState([]);
 
+  // Permissions
+  const DEFAULT_PERMS = {
+    marine:    { personnel: true,  operations: true,  orbat: true,  documents: true,  gear_loadouts: true,  spotlight: true,  applications: false, settings: false },
+    moderator: { personnel: true,  operations: true,  orbat: true,  documents: true,  gear_loadouts: true,  spotlight: true,  applications: true,  settings: false },
+  };
+  const [permissions, setPermissions] = useState(DEFAULT_PERMS);
+  const [savingPerms, setSavingPerms] = useState(false);
+
   const showFlash = (msg) => {
     setFlash(msg);
     setTimeout(() => setFlash(''), 3000);
@@ -208,6 +216,9 @@ export default function Settings() {
 
     // Fetch Discord guild roles for rank mapping (best-effort — requires bot)
     api.get('/settings/guild-roles').then((r) => setDiscordRoles(r.data)).catch(() => {});
+
+    // Fetch role permissions
+    api.get('/settings/permissions').then((r) => setPermissions(r.data)).catch(() => {});
   }, []);
 
   // ── Logo handlers ──────────────────────────────────────────────────────────
@@ -257,6 +268,25 @@ export default function Settings() {
     } finally {
       setChangingRole(null);
     }
+  };
+
+  const handleSavePerms = async () => {
+    setSavingPerms(true);
+    try {
+      await api.put('/settings/permissions', permissions);
+      showFlash('Permissions saved.');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save permissions');
+    } finally {
+      setSavingPerms(false);
+    }
+  };
+
+  const togglePerm = (role, feature) => {
+    setPermissions(prev => ({
+      ...prev,
+      [role]: { ...prev[role], [feature]: !prev[role][feature] },
+    }));
   };
 
   const handleSyncRoles = async () => {
@@ -539,6 +569,93 @@ export default function Settings() {
             {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
             {syncing ? 'Syncing...' : 'Sync Roles Now'}
           </button>
+        </div>
+      </div>
+
+      {/* Role Permissions */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#162448]">
+          <div className="flex items-center gap-2.5">
+            <Lock size={13} className="text-[#3b82f6]" />
+            <span className="section-header">Role Permissions</span>
+          </div>
+          <button
+            onClick={handleSavePerms}
+            disabled={savingPerms}
+            className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3"
+          >
+            {savingPerms ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+            Save
+          </button>
+        </div>
+        <div className="p-4">
+          <p className="text-[#4a6fa5] text-xs mb-4">
+            Configure which features each role can access. Administrators always have full access.
+          </p>
+
+          {(() => {
+            const FEATURES = [
+              { key: 'personnel',     label: 'Personnel Roster' },
+              { key: 'operations',    label: 'Operations' },
+              { key: 'orbat',         label: 'Order of Battle' },
+              { key: 'documents',     label: 'Documents' },
+              { key: 'gear_loadouts', label: 'Gear Loadouts' },
+              { key: 'spotlight',     label: 'Spotlight' },
+              { key: 'applications',  label: 'Applications' },
+              { key: 'settings',      label: 'Settings' },
+            ];
+            const ROLES = [
+              { key: 'marine',    label: 'Marine',    color: 'text-[#60a5fa]' },
+              { key: 'moderator', label: 'Moderator', color: 'text-amber-400' },
+              { key: 'admin',     label: 'Admin',     color: 'text-green-400' },
+            ];
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-[#162448]">
+                      <th className="text-left text-[#4a6fa5] pb-2 pr-4 font-normal tracking-wider text-[10px]">FEATURE</th>
+                      {ROLES.map(r => (
+                        <th key={r.key} className={`pb-2 px-3 font-normal tracking-wider text-[10px] ${r.color}`}>{r.label.toUpperCase()}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {FEATURES.map((f, i) => (
+                      <tr key={f.key} className={`border-b border-[#162448]/40 ${i % 2 === 0 ? '' : 'bg-[#060918]/30'}`}>
+                        <td className="py-2 pr-4 text-[#8aa8cc]">{f.label}</td>
+                        {ROLES.map(r => {
+                          const isAdmin = r.key === 'admin';
+                          const checked = isAdmin ? true : (permissions[r.key]?.[f.key] ?? false);
+                          return (
+                            <td key={r.key} className="py-2 px-3 text-center">
+                              <button
+                                disabled={isAdmin}
+                                onClick={() => !isAdmin && togglePerm(r.key, f.key)}
+                                className={`w-5 h-5 rounded-sm border flex items-center justify-center mx-auto transition-all ${
+                                  checked
+                                    ? isAdmin
+                                      ? 'bg-green-900/40 border-green-700/50'
+                                      : 'bg-[#3b82f6]/20 border-[#3b82f6]/50 hover:bg-[#3b82f6]/30'
+                                    : 'border-[#2a4a80] hover:border-[#3b82f6]/40'
+                                } ${isAdmin ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
+                              >
+                                {checked && (
+                                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                    <path d="M1 4l3 3 5-6" stroke={isAdmin ? '#4ade80' : '#60a5fa'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
