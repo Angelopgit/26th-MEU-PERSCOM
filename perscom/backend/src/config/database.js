@@ -451,6 +451,17 @@ function initializeDatabase() {
     console.log('[PERSCOM] Users table migrated for Discord OAuth');
   }
 
+  // Drop ingame_name column if it exists (was removed from the application form)
+  try {
+    const appCols = database.prepare('PRAGMA table_info(applications)').all();
+    if (appCols.some(c => c.name === 'ingame_name')) {
+      database.exec('ALTER TABLE applications DROP COLUMN ingame_name');
+      console.log('[PERSCOM] Removed applications.ingame_name column');
+    }
+  } catch (e) {
+    console.error('[PERSCOM] Could not drop ingame_name:', e.message);
+  }
+
   // Seed ORBAT structure if empty
   const orbatCount = database.prepare('SELECT COUNT(*) as cnt FROM orbat_slots').get();
   if (orbatCount.cnt === 0) {
