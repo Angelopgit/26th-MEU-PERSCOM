@@ -287,10 +287,16 @@ router.delete('/:id', authenticate, requireStaff, (req, res) => {
   const person = db.prepare('SELECT * FROM personnel WHERE id = ?').get(req.params.id);
   if (!person) return res.status(404).json({ error: 'Personnel not found' });
 
-  db.prepare('DELETE FROM personnel WHERE id = ?').run(req.params.id);
-  logActivity('PERSONNEL_REMOVED', `${person.name} removed from roster`, req.user.id);
-
-  res.json({ success: true });
+  try {
+    // Unlink any applications referencing this personnel record before deleting (FK constraint)
+    db.prepare('UPDATE applications SET personnel_id = NULL WHERE personnel_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM personnel WHERE id = ?').run(req.params.id);
+    logActivity('PERSONNEL_REMOVED', `${person.name} removed from roster`, req.user.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[PERSONNEL] delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete personnel: ' + err.message });
+  }
 });
 
 // Promote one rank
