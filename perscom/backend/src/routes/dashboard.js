@@ -12,7 +12,7 @@ router.get('/stats', authenticate, (req, res) => {
   const civilians = db.prepare("SELECT COUNT(*) as c FROM personnel WHERE status = 'Civilian'").get().c;
 
   // Count Marines with evals due (none in last 30 days)
-  const allMarines = db.prepare("SELECT id FROM personnel WHERE status = 'Marine'").all();
+  const allMarines = db.prepare("SELECT id FROM personnel WHERE status = 'Marine' AND member_status != 'Inactive'").all();
   const now = new Date();
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
   const sixtyDaysAgo  = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();

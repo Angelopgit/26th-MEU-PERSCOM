@@ -112,11 +112,12 @@ export function AuthProvider({ children }) {
   const isMarine = user?.role === 'marine';
   const isStaff  = isAdmin || isMod;
   const canEdit  = isAdmin || isMod;
+  const isDI     = !!(user?.is_di) || isStaff; // staff implicitly have DI privileges
 
   return (
     <AuthContext.Provider value={{
       user, loading,
-      isAdmin, isMod, isGuest, isMarine, isStaff, canEdit,
+      isAdmin, isMod, isGuest, isMarine, isStaff, canEdit, isDI,
       adminAlias, selectAlias,
       logoUrl, setLogoUrl,
       login, enterGuest, logout,

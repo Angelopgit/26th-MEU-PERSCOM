@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Map, ClipboardList, LogOut,
-  Target, ScrollText, Settings, Eye, BookOpen, X, ClipboardCheck,
+  Target, ScrollText, Settings, Eye, BookOpen, X, ClipboardCheck, Shield,
 } from 'lucide-react';
 import MeuLogo from '../assets/MeuLogo';
 
@@ -15,7 +15,8 @@ const NAV_ITEMS = [
   { to: '/evaluations',  icon: ClipboardList,  label: 'Evaluations',    end: false, guestHide: true,  marineHide: true  },
   { to: '/eventlog',     icon: ScrollText,     label: 'Event Log',      end: false, guestHide: true,  marineHide: true  },
   { to: '/applications', icon: ClipboardCheck, label: 'Applications',   end: false, guestHide: true,  marineHide: true  },
-  { to: '/settings',     icon: Settings,       label: 'Settings',       end: false, guestHide: true,  marineHide: true, adminOnly: true },
+  { to: '/soi',          icon: Shield,          label: 'SOI',            end: false, guestHide: true,  marineHide: false },
+  { to: '/settings',     icon: Settings,        label: 'Settings',       end: false, guestHide: true,  marineHide: true, adminOnly: true },
 ];
 
 export default function Sidebar({ open, onClose }) {

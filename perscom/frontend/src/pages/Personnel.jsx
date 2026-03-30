@@ -357,7 +357,7 @@ function MemberStatusDropdown({ person, onChanged }) {
 }
 
 export default function Personnel() {
-  const { canEdit, isGuest } = useAuth();
+  const { canEdit, isGuest, user } = useAuth();
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -438,6 +438,7 @@ export default function Personnel() {
   };
 
   const handlePromote = async (person) => {
+    if (!confirm(`Promote ${person.name}?`)) return;
     try {
       await api.post(`/personnel/${person.id}/promote`);
       fetchPersonnel();
@@ -445,6 +446,7 @@ export default function Personnel() {
   };
 
   const handleDemote = async (person) => {
+    if (!confirm(`Demote ${person.name}?`)) return;
     try {
       await api.post(`/personnel/${person.id}/demote`);
       fetchPersonnel();
@@ -565,12 +567,12 @@ export default function Personnel() {
                 </div>
 
                 <div className="w-28 hidden sm:block">
-                  {isGuest ? (
+                  {(canEdit || user?.personnel_id === person.id) ? (
+                    <MemberStatusDropdown person={person} onChanged={handleStatusChanged} />
+                  ) : (
                     <span className={MEMBER_STATUS_STYLES[person.member_status] || 'badge-muted'}>
                       {person.member_status || 'Active'}
                     </span>
-                  ) : (
-                    <MemberStatusDropdown person={person} onChanged={handleStatusChanged} />
                   )}
                 </div>
 

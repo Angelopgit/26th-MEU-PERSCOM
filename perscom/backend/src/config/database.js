@@ -521,6 +521,38 @@ function initializeDatabase() {
     database.prepare("INSERT INTO settings (key, value) VALUES ('rank_progression_enabled', 'false')").run();
   }
 
+  // ── SOI Module ────────────────────────────────────────────────────────────
+  try { database.exec('ALTER TABLE users ADD COLUMN is_di INTEGER DEFAULT 0'); } catch {}
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS soi_classes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      scheduled_date TEXT,
+      scheduled_time TEXT NOT NULL DEFAULT '20:00',
+      duration_minutes INTEGER DEFAULT 90,
+      max_capacity INTEGER DEFAULT 10,
+      is_recurring INTEGER DEFAULT 0,
+      recur_days TEXT DEFAULT '[]',
+      status TEXT DEFAULT 'open' CHECK(status IN ('open','full','completed','cancelled')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS soi_enrollments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      class_id INTEGER NOT NULL REFERENCES soi_classes(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      enrolled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'enrolled' CHECK(status IN ('enrolled','completed','no_show')),
+      UNIQUE(class_id, user_id)
+    )
+  `);
+
   console.log('[PERSCOM] Database initialized');
 }
 

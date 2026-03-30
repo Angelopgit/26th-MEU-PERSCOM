@@ -322,9 +322,12 @@ router.get('/discord/callback', async (req, res) => {
 
     // Check if user holds the S-1 / Moderator Discord role (DISCORD_ROLE_MODERATOR env var)
     // If so, they are automatically granted moderator access in PERSCOM on login
-    const { DISCORD_ROLE_MODERATOR } = process.env;
+    const { DISCORD_ROLE_MODERATOR, DISCORD_ROLE_DI } = process.env;
     const hasModRole = DISCORD_ROLE_MODERATOR && guildMember
       ? guildMember.roles.includes(DISCORD_ROLE_MODERATOR)
+      : false;
+    const hasDIRole = DISCORD_ROLE_DI && guildMember
+      ? guildMember.roles.includes(DISCORD_ROLE_DI)
       : false;
 
     // Look up existing user by discord_id
@@ -343,13 +346,14 @@ router.get('/discord/callback', async (req, res) => {
 
       db.prepare(`
         UPDATE users SET discord_username = ?, discord_avatar = ?,
-        discord_access_token = ?, discord_refresh_token = ?, role = ? WHERE id = ?
+        discord_access_token = ?, discord_refresh_token = ?, role = ?, is_di = ? WHERE id = ?
       `).run(
         discordUser.username,
         discordUser.avatar,
         tokens.access_token,
         tokens.refresh_token || null,
         effectiveRole,
+        hasDIRole ? 1 : 0,
         existingUser.id
       );
 
@@ -362,6 +366,7 @@ router.get('/discord/callback', async (req, res) => {
         discord_username: discordUser.username,
         discord_avatar: discordUser.avatar,
         personnel_id: existingUser.personnel_id,
+        is_di: hasDIRole ? 1 : 0,
       };
 
       const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });

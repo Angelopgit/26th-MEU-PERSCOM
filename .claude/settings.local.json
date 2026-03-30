@@ -25,7 +25,8 @@
       "Bash(node -e \"require\\(''./src/routes/personnel''\\); require\\(''./src/routes/operations''\\); require\\(''./src/routes/documents''\\); require\\(''./src/routes/spotlight''\\); require\\(''./src/routes/gear-loadouts''\\); require\\(''./src/routes/announcements''\\); require\\(''./src/routes/discord-auth''\\); console.log\\(''All routes loaded OK''\\)\")",
       "Bash(node -e \"require\\(''''./src/routes/notifications''''\\); require\\(''''./src/routes/users''''\\); require\\(''''./src/discord/bot''''\\); console.log\\(''''Backend OK''''\\)\")",
       "Bash(node -e \":*)",
-      "Bash(grep -v \"Use \\\\`node\")"
+      "Bash(grep -v \"Use \\\\`node\")",
+      "Bash(node --no-warnings --experimental-sqlite -e \":*)"
     ]
   }
 }

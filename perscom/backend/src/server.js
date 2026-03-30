@@ -23,6 +23,7 @@ const spotlightRoutes = require('./routes/spotlight');
 const ranksRoutes = require('./routes/ranks');
 const applicationsRoutes = require('./routes/applications');
 const notificationsRoutes = require('./routes/notifications');
+const soiRoutes = require('./routes/soi');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,6 +62,7 @@ app.use('/api/spotlight', spotlightRoutes);
 app.use('/api/ranks', ranksRoutes);
 app.use('/api/applications', applicationsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/soi', soiRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ONLINE', system: 'PERSCOM v1.0', unit: '26th MEU (SOC)' });

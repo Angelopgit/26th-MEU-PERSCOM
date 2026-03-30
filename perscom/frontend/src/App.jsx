@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import Documents from './pages/Documents';
 import Apply from './pages/Apply';
 import Applications from './pages/Applications';
+import SOI from './pages/SOI';
 import WelcomeScreen from './components/WelcomeScreen';
 import NoPersonnelModal from './components/NoPersonnelModal';
 
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="roster" element={<Orbat />} />
         <Route path="documents" element={<Documents />} />
         <Route path="operations" element={<Operations />} />
+        <Route path="soi" element={<SOI />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

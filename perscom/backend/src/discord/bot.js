@@ -128,6 +128,29 @@ async function startBot() {
         }
       }
 
+      // ── DI role removed → revoke DI flag ──────────────────────────────────
+      const DISCORD_ROLE_DI = process.env.DISCORD_ROLE_DI;
+      if (DISCORD_ROLE_DI && removedRoles.has(DISCORD_ROLE_DI)) {
+        const db = getDb();
+        const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(newMember.user.id);
+        if (user && user.is_di) {
+          db.prepare('UPDATE users SET is_di = 0 WHERE id = ?').run(user.id);
+          logActivity('ROLE_CHANGED', `${user.display_name}: DI role removed`, null);
+          console.log(`[BOT] ${user.display_name} DI flag revoked — DI Discord role removed`);
+        }
+      }
+
+      // ── DI role added → grant DI flag ─────────────────────────────────────
+      if (DISCORD_ROLE_DI && addedRoles.has(DISCORD_ROLE_DI)) {
+        const db = getDb();
+        const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(newMember.user.id);
+        if (user && !user.is_di) {
+          db.prepare('UPDATE users SET is_di = 1 WHERE id = ?').run(user.id);
+          logActivity('ROLE_CHANGED', `${user.display_name}: DI role granted`, null);
+          console.log(`[BOT] ${user.display_name} granted DI flag — DI Discord role added`);
+        }
+      }
+
       const addedRankRole = addedRoles.find(r => RANKS.includes(r.name));
       if (!addedRankRole && !removedRoles.find(r => RANKS.includes(r.name))) return;
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../config/database');
-const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
+const { authenticate, authenticateAny, requireAdmin, requireStaff } = require('../middleware/auth');
 const { logActivity } = require('../utils/logActivity');
 const { syncRankToDiscord } = require('../discord/sync');
 const { getMemberRoles } = require('../discord/bot');
@@ -221,7 +221,7 @@ router.put('/:id', authenticate, requireStaff, (req, res) => {
 
 // Update member status (Active / Leave of Absence / Inactive)
 // Admins/moderators can change anyone. Marines can only change their own record.
-router.patch('/:id/member-status', authenticate, (req, res) => {
+router.patch('/:id/member-status', authenticateAny, (req, res) => {
   const { member_status, loa_start_date, loa_end_date, loa_reason } = req.body;
   if (!VALID_MEMBER_STATUSES.includes(member_status)) {
     return res.status(400).json({ error: 'Invalid member_status value' });

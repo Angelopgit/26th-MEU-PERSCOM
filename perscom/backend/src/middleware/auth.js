@@ -27,6 +27,27 @@ function authenticate(req, res, next) {
   }
 }
 
+// Like authenticate but does NOT apply the read-only block for marines/guests.
+// Used for routes where marines are allowed to mutate their own record.
+function authenticateAny(req, res, next) {
+  const token =
+    req.cookies?.perscom_token ||
+    (req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.split(' ')[1]
+      : null);
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Administrator access required' });
@@ -41,4 +62,4 @@ function requireStaff(req, res, next) {
   next();
 }
 
-module.exports = { authenticate, requireAdmin, requireStaff };
+module.exports = { authenticate, authenticateAny, requireAdmin, requireStaff };
