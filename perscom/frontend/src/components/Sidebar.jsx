@@ -15,16 +15,17 @@ const NAV_ITEMS = [
   { to: '/evaluations',  icon: ClipboardList,  label: 'Evaluations',    end: false, guestHide: true,  marineHide: true  },
   { to: '/eventlog',     icon: ScrollText,     label: 'Event Log',      end: false, guestHide: true,  marineHide: true  },
   { to: '/applications', icon: ClipboardCheck, label: 'Applications',   end: false, guestHide: true,  marineHide: true  },
-  { to: '/soi',          icon: Shield,          label: 'SOI',            end: false, guestHide: true,  marineHide: false },
+  { to: '/soi',          icon: Shield,          label: 'SOI',            end: false, guestHide: true,  marineHide: false, soiOnly: true },
   { to: '/settings',     icon: Settings,        label: 'Settings',       end: false, guestHide: true,  marineHide: true, adminOnly: true },
 ];
 
 export default function Sidebar({ open, onClose }) {
-  const { user, logout, isAdmin, isGuest, isMarine, adminAlias, logoUrl } = useAuth();
+  const { user, logout, isAdmin, isGuest, isMarine, canSeeSoi, adminAlias, logoUrl } = useAuth();
 
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (isGuest && item.guestHide) return false;
     if (isMarine && item.marineHide) return false;
+    if (item.soiOnly && !canSeeSoi) return false;
     if (item.adminOnly && !isAdmin) return false;
     return true;
   });

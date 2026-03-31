@@ -414,7 +414,7 @@ function ClassForm({ initial = BLANK_CLASS, onSave, onCancel, saving }) {
     >
       <div>
         <label className="label text-[#4ade80]">Class Title *</label>
-        <input className="input-field" placeholder="e.g. Weapons Fundamentals Block I"
+        <input className="input-field" placeholder="e.g. Wednesday with LCpl. T. Tyler"
           value={form.title} onChange={e => set('title', e.target.value)} required autoFocus />
       </div>
       <div>

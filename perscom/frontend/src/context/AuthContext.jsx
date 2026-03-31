@@ -106,18 +106,20 @@ export function AuthProvider({ children }) {
     sessionStorage.setItem('perscom_alias', alias);
   };
 
-  const isAdmin  = user?.role === 'admin';
-  const isMod    = user?.role === 'moderator';
-  const isGuest  = user?.role === 'guest';
-  const isMarine = user?.role === 'marine';
-  const isStaff  = isAdmin || isMod;
-  const canEdit  = isAdmin || isMod;
-  const isDI     = !!(user?.is_di) || isStaff; // staff implicitly have DI privileges
+  const isAdmin    = user?.role === 'admin';
+  const isMod      = user?.role === 'moderator';
+  const isGuest    = user?.role === 'guest';
+  const isMarine   = user?.role === 'marine';
+  const isStaff    = isAdmin || isMod;
+  const canEdit    = isAdmin || isMod;
+  const isDI       = !!(user?.is_di) || isStaff;
+  const isRecruit  = isMarine && user?.rank === 'Recruit';
+  const canSeeSoi  = isDI || isRecruit; // S-1 = staff which is covered by isDI
 
   return (
     <AuthContext.Provider value={{
       user, loading,
-      isAdmin, isMod, isGuest, isMarine, isStaff, canEdit, isDI,
+      isAdmin, isMod, isGuest, isMarine, isStaff, canEdit, isDI, isRecruit, canSeeSoi,
       adminAlias, selectAlias,
       logoUrl, setLogoUrl,
       login, enterGuest, logout,

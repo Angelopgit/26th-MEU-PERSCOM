@@ -62,7 +62,14 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', authenticate, (req, res) => {
-  res.json({ user: req.user });
+  // Augment with live rank from personnel (rank changes don't refresh the JWT)
+  const db = getDb();
+  let rank = null;
+  if (req.user.personnel_id) {
+    const p = db.prepare('SELECT rank FROM personnel WHERE id = ?').get(req.user.personnel_id);
+    rank = p?.rank || null;
+  }
+  res.json({ user: { ...req.user, rank } });
 });
 
 module.exports = router;

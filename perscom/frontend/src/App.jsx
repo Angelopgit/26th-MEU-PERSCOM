@@ -54,6 +54,15 @@ function AuthRoute({ children }) {
   return children;
 }
 
+// SOI: recruits, DIs, and S-1 staff only
+function SoiRoute({ children }) {
+  const { user, loading, canSeeSoi, isGuest } = useAuth();
+  if (loading) return <Loader />;
+  if (!user || isGuest) return <Navigate to="/login" replace />;
+  if (!canSeeSoi) return <Navigate to="/personnel" replace />;
+  return children;
+}
+
 function AppRoutes() {
   const { user, loading, isGuest } = useAuth();
   if (loading) return <Loader />;
@@ -79,7 +88,7 @@ function AppRoutes() {
         <Route path="roster" element={<Orbat />} />
         <Route path="documents" element={<Documents />} />
         <Route path="operations" element={<Operations />} />
-        <Route path="soi" element={<SOI />} />
+        <Route path="soi" element={<SoiRoute><SOI /></SoiRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
