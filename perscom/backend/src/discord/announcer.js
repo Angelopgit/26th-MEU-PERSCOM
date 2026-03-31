@@ -344,6 +344,68 @@ async function announceApplicationDenied(discordUserId, reason) {
   });
 }
 
+// ── SOI Enrollment ────────────────────────────────────────────────────────────
+// Tags the recruit (confirmation) and the instructor (heads-up) in the recruit
+// hall channel when a recruit enrolls in an SOI class.
+async function announceSOIEnrollment({
+  recruitDiscordId,
+  recruitName,
+  instructorDiscordId,
+  instructorName,
+  classTitle,
+  scheduledDate,
+  scheduledTime,
+  isRecurring,
+  recurDays,
+}) {
+  const channelId = process.env.DISCORD_RECRUIT_HALL_CHANNEL_ID;
+  const channel = await getChannel(channelId);
+  if (!channel) return;
+
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  let scheduleValue;
+  if (isRecurring && recurDays?.length) {
+    const dayNames = recurDays.map(d => DAY_LABELS[d] || d).join(' / ');
+    const unix = scheduledTime ? toUnixTimestamp(
+      new Date().toISOString().split('T')[0], scheduledTime
+    ) : null;
+    scheduleValue = `Every ${dayNames}` + (unix ? ` at <t:${unix}:t>` : scheduledTime ? ` at ${scheduledTime} EST` : '');
+  } else if (scheduledDate) {
+    const unix = toUnixTimestamp(scheduledDate, scheduledTime);
+    scheduleValue = unix ? `<t:${unix}:F>` : scheduledDate;
+  } else {
+    scheduleValue = 'TBD';
+  }
+
+  const instructorMention = instructorDiscordId
+    ? `<@${instructorDiscordId}>`
+    : (instructorName || 'Unassigned');
+
+  const embed = new EmbedBuilder()
+    .setColor(0x22c55e)
+    .setAuthor({ name: '🎖️ SOI ENROLLMENT — 26th MEU (SOC)' })
+    .setTitle(classTitle)
+    .setDescription(`<@${recruitDiscordId}> has enrolled in an SOI class.`)
+    .addFields(
+      { name: 'Recruit',    value: `<@${recruitDiscordId}> — ${recruitName}`, inline: true },
+      { name: 'Instructor', value: instructorMention,                          inline: true },
+      { name: 'Schedule',   value: scheduleValue,                              inline: false },
+      { name: 'Next Steps', value: 'Attend your scheduled class and report to your Drill Instructor. Ensure you are on time — no shows will be recorded.', inline: false },
+    )
+    .setFooter({ text: 'PERSCOM — 26th MEU (SOC) | School of Infantry' })
+    .setTimestamp();
+
+  const instructorPing = instructorDiscordId ? `<@${instructorDiscordId}>` : '';
+
+  await channel.send({
+    content: `<@${recruitDiscordId}> ✅ **SOI Enrollment Confirmed!**${instructorPing ? `  ·  ${instructorPing} — new recruit in your class.` : ''}`,
+    embeds: [embed],
+  }).catch(err => {
+    console.error('[ANNOUNCER] SOI enrollment:', err.message);
+  });
+}
+
 module.exports = {
   announceRankChange,
   announceAward,
@@ -354,4 +416,5 @@ module.exports = {
   announceApplicationSubmitted,
   announceApplicationApproved,
   announceApplicationDenied,
+  announceSOIEnrollment,
 };

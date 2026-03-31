@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb } = require('../config/database');
 const { authenticate, authenticateAny } = require('../middleware/auth');
 const { logActivity } = require('../utils/logActivity');
+const { announceSOIEnrollment } = require('../discord/announcer');
 
 const router = express.Router();
 
@@ -238,6 +239,27 @@ router.post('/classes/:id/enroll', authenticateAny, (req, res) => {
     }
 
     logActivity('SOI_ENROLLED', `${req.user.display_name} enrolled in: ${cls.title}`, req.user.id);
+
+    // Discord notification — tag recruit + instructor (non-blocking)
+    const recruit    = db.prepare('SELECT discord_id, display_name FROM users WHERE id = ?').get(req.user.id);
+    const instructor = cls.instructor_id
+      ? db.prepare('SELECT discord_id, display_name FROM users WHERE id = ?').get(cls.instructor_id)
+      : null;
+
+    if (recruit?.discord_id) {
+      announceSOIEnrollment({
+        recruitDiscordId:    recruit.discord_id,
+        recruitName:         recruit.display_name,
+        instructorDiscordId: instructor?.discord_id || null,
+        instructorName:      instructor?.display_name || null,
+        classTitle:          cls.title,
+        scheduledDate:       cls.scheduled_date,
+        scheduledTime:       cls.scheduled_time,
+        isRecurring:         !!cls.is_recurring,
+        recurDays:           parseRecurDays(cls.recur_days),
+      }).catch(() => {});
+    }
+
     res.status(201).json({ success: true });
   } catch (err) {
     if (err.message?.includes('UNIQUE')) {
