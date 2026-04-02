@@ -294,6 +294,26 @@ router.delete('/classes/:id/enroll', authenticateAny, (req, res) => {
   res.json({ success: true });
 });
 
+// GET /api/soi/personnel/:personnelId — SOI completion record for a personnel profile
+router.get('/personnel/:personnelId', authenticate, (req, res) => {
+  const db = getDb();
+  const linkedUser = db.prepare('SELECT id FROM users WHERE personnel_id = ?').get(req.params.personnelId);
+  if (!linkedUser) return res.json({ graduations: [] });
+
+  const graduations = db.prepare(`
+    SELECT se.class_id, se.enrolled_at, se.completed_at,
+      sc.title AS class_title, sc.scheduled_date, sc.scheduled_time, sc.is_recurring,
+      u.display_name AS instructor_name
+    FROM soi_enrollments se
+    JOIN soi_classes sc ON se.class_id = sc.id
+    LEFT JOIN users u ON sc.instructor_id = u.id
+    WHERE se.user_id = ? AND se.status = 'completed'
+    ORDER BY se.completed_at DESC
+  `).all(linkedUser.id);
+
+  res.json({ graduations });
+});
+
 // POST /api/soi/classes/:id/graduate/:userId — mark student as completed (DI or staff)
 router.post('/classes/:id/graduate/:userId', authenticate, (req, res) => {
   if (!isDIorStaff(req.user)) {
@@ -306,14 +326,15 @@ router.post('/classes/:id/graduate/:userId', authenticate, (req, res) => {
 
   if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
 
-  db.prepare("UPDATE soi_enrollments SET status = 'completed' WHERE class_id = ? AND user_id = ?")
-    .run(req.params.id, req.params.userId);
+  const now = new Date().toISOString();
+  db.prepare("UPDATE soi_enrollments SET status = 'completed', completed_at = ? WHERE class_id = ? AND user_id = ?")
+    .run(now, req.params.id, req.params.userId);
 
   const user = db.prepare('SELECT display_name FROM users WHERE id = ?').get(req.params.userId);
   const cls  = db.prepare('SELECT title FROM soi_classes WHERE id = ?').get(req.params.id);
   logActivity('SOI_GRADUATED', `${user?.display_name} graduated SOI: ${cls?.title}`, req.user.id);
 
-  res.json({ success: true });
+  res.json({ success: true, completed_at: now });
 });
 
 // POST /api/soi/classes/:id/no-show/:userId — mark no-show (DI or staff)

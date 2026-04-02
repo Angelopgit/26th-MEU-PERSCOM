@@ -318,6 +318,8 @@ export default function MarineProfile() {
   const [removingQual, setRemovingQual] = useState(null);
   const [discordRoles, setDiscordRoles] = useState([]);
   const [attendance, setAttendance]     = useState(null);
+  const [soiGraduations, setSoiGraduations] = useState([]);
+  const [soiExpanded, setSoiExpanded]   = useState(false);
   const [ranks, setRanks]               = useState([]);
   const [rankProgressionEnabled, setRankProgressionEnabled] = useState(false);
   const [settingLoa, setSettingLoa]     = useState(false);
@@ -352,6 +354,14 @@ export default function MarineProfile() {
     api.get(`/attendance/personnel/${id}`)
       .then((res) => setAttendance(res.data))
       .catch(() => setAttendance(null));
+  }, [id, person]);
+
+  // Fetch SOI graduation records
+  useEffect(() => {
+    if (!person) return;
+    api.get(`/soi/personnel/${id}`)
+      .then((res) => setSoiGraduations(res.data.graduations || []))
+      .catch(() => setSoiGraduations([]));
   }, [id, person]);
 
   // Fetch own application (only when viewing own profile)
@@ -779,15 +789,68 @@ export default function MarineProfile() {
         </div>
       )}
 
+      {/* SOI Graduation Record */}
+      {soiGraduations.length > 0 && (
+        <div className="card overflow-hidden">
+          <button
+            className="w-full flex items-center gap-2.5 px-4 py-3 border-b border-[#162448] hover:bg-[#0f1c35]/40 transition-colors text-left"
+            onClick={() => setSoiExpanded(e => !e)}
+          >
+            <Shield size={13} className="text-amber-400 shrink-0" />
+            <span className="section-header">School of Infantry</span>
+            <span className="ml-2 text-[9px] font-mono px-1.5 py-0.5 rounded-sm border text-amber-400/80 border-amber-900/40 bg-amber-950/20">
+              GRADUATED
+            </span>
+            <span className="ml-auto text-[#1a2f55] text-xs font-mono">{soiGraduations.length} class{soiGraduations.length !== 1 ? 'es' : ''}</span>
+            {soiExpanded ? <ChevronUp size={12} className="text-[#4a6fa5] shrink-0" /> : <ChevronDown size={12} className="text-[#4a6fa5] shrink-0" />}
+          </button>
+          {soiExpanded && (
+            <div>
+              {soiGraduations.map((g, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[#162448]/40 last:border-0">
+                  <Shield size={10} className="text-amber-400/60 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[#dbeafe] text-xs font-medium truncate">{g.class_title}</div>
+                    <div className="text-[#1a2f55] text-[9px] font-mono mt-0.5">
+                      {g.instructor_name && `DI: ${g.instructor_name} · `}
+                      Graduated: {g.completed_at ? format(new Date(g.completed_at), 'MMM dd, yyyy') : '—'}
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-sm border text-amber-400/70 border-amber-900/40">
+                    SOI
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Attendance History */}
-      {attendance && attendance.total > 0 && (
+      {(attendance && (attendance.total > 0 || soiGraduations.length > 0)) && (
         <div className="card overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#162448]">
             <Target size={13} className="text-[#3b82f6]" />
             <span className="section-header">Attendance History</span>
-            <span className="ml-auto text-[#1a2f55] text-xs font-mono">{attendance.total} events</span>
+            <span className="ml-auto text-[#1a2f55] text-xs font-mono">{attendance.total + soiGraduations.length} events</span>
           </div>
           <div>
+            {/* SOI graduation as first attendance entry */}
+            {soiGraduations.map((g, i) => (
+              <div key={`soi-${i}`} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#162448]/40">
+                <span className="text-[9px]">🎖️</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[#dbeafe] text-xs truncate">{g.class_title}</div>
+                  <div className="text-[#1a2f55] text-[9px] font-mono">
+                    {g.completed_at ? format(new Date(g.completed_at), 'MMM dd, yyyy') : '—'}
+                    {g.instructor_name && ` · DI: ${g.instructor_name}`}
+                  </div>
+                </div>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-sm border text-amber-400/70 border-amber-900/40">
+                  SOI
+                </span>
+              </div>
+            ))}
             {attendance.records.map((r) => (
               <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#162448]/40 last:border-0">
                 <span className="text-[9px]">{r.type === 'Training' ? '🎯' : '⚔️'}</span>

@@ -89,8 +89,17 @@ export default function Layout() {
           </div>
         )}
 
+        <style>{`
+          @keyframes pageIn {
+            from { opacity: 0; transform: translateY(7px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          .page-enter { animation: pageIn 0.18s ease-out both; }
+        `}</style>
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <Outlet />
+          <div key={location.pathname} className="page-enter h-full">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

@@ -548,10 +548,12 @@ function initializeDatabase() {
       class_id INTEGER NOT NULL REFERENCES soi_classes(id) ON DELETE CASCADE,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       enrolled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME,
       status TEXT DEFAULT 'enrolled' CHECK(status IN ('enrolled','completed','no_show')),
       UNIQUE(class_id, user_id)
     )
   `);
+  try { database.exec('ALTER TABLE soi_enrollments ADD COLUMN completed_at DATETIME'); } catch {}
 
   console.log('[PERSCOM] Database initialized');
 }
