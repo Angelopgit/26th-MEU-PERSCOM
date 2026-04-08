@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import {
   Shield, Users, Clock, Calendar, CheckCircle2, XCircle, Plus,
@@ -8,6 +9,12 @@ import {
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_FULL   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -641,7 +648,7 @@ export default function SOI() {
   }
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <motion.div {...pageAnim} className="space-y-5 max-w-5xl">
       {/* Module header */}
       <SOIHeader />
 
@@ -779,6 +786,6 @@ export default function SOI() {
           </div>
         </Modal>
       )}
-    </div>
+    </motion.div>
   );
 }

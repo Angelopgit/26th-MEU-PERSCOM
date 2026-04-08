@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Star, Shield, Clock, Calendar, Award,
@@ -10,6 +11,12 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import { imgUrl } from '../utils/imgUrl';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
 
 const RANK_ABBREV = {
   'Recruit': 'Rct', 'Private': 'Pvt', 'Private First Class': 'PFC',
@@ -464,7 +471,7 @@ export default function MarineProfile() {
   const currentRankData = ranks.find((r) => r.name === person.rank);
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <motion.div {...pageAnim} className="max-w-4xl space-y-5">
       {/* Back nav */}
       <div className="flex items-center justify-between">
         <Link to="/personnel" className="flex items-center gap-2 text-[#4a6fa5] hover:text-[#dbeafe] transition-colors text-sm font-mono">
@@ -969,6 +976,6 @@ export default function MarineProfile() {
           } : null}
         />
       )}
-    </div>
+    </motion.div>
   );
 }

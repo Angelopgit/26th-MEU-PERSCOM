@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SoundProvider } from './context/SoundContext';
 import Layout from './components/Layout';
@@ -65,10 +66,12 @@ function SoiRoute({ children }) {
 
 function AppRoutes() {
   const { user, loading, isGuest } = useAuth();
+  const location = useLocation();
   if (loading) return <Loader />;
 
   return (
-    <Routes>
+    <AnimatePresence mode="wait">
+    <Routes location={location} key={location.pathname}>
       {/* Public routes — no auth required */}
       <Route path="/apply" element={<Apply />} />
       {/* Don't redirect guests to "/" — ProtectedRoute blocks them there and causes an infinite loop */}
@@ -92,6 +95,7 @@ function AppRoutes() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </AnimatePresence>
   );
 }
 

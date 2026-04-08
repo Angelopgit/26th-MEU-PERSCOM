@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { ClipboardList, AlertTriangle, CheckCircle2, Clock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
+const listContainer = { animate: { transition: { staggerChildren: 0.04 } } };
+const listItem = { initial: { opacity: 0, x: -8 }, animate: { opacity: 1, x: 0, transition: { duration: 0.2 } } };
 
 const RANK_ABBREV = {
   'Recruit': 'Rct', 'Private': 'Pvt', 'Private First Class': 'PFC',
@@ -198,7 +207,7 @@ export default function Evaluations() {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-4xl">
       {/* Summary strip */}
       <div className="grid grid-cols-4 gap-3">
         {[
@@ -249,8 +258,9 @@ export default function Evaluations() {
             NO MARINES FOUND
           </div>
         ) : (
-          filtered.map((marine) => (
-            <div key={marine.id}>
+          <motion.div variants={listContainer} initial="initial" animate="animate">
+          {filtered.map((marine) => (
+            <motion.div key={marine.id} variants={listItem}>
               {/* Main row */}
               <div className="flex items-center gap-4 px-4 py-3 border-b border-[#162448]/50 hover:bg-[#0f1c35]/50 transition-colors">
                 <div className="flex-1 min-w-0">
@@ -304,8 +314,9 @@ export default function Evaluations() {
                   )}
                 </div>
               )}
-            </div>
-          ))
+            </motion.div>
+          ))}
+          </motion.div>
         )}
       </div>
 
@@ -320,6 +331,6 @@ export default function Evaluations() {
           }}
         />
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
   Search, Plus, ChevronUp, ChevronDown, Award, Trash2,
@@ -9,6 +10,14 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import MarineHoverCard from '../components/MarineHoverCard';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
+const listContainer = { animate: { transition: { staggerChildren: 0.04 } } };
+const listItem = { initial: { opacity: 0, x: -8 }, animate: { opacity: 1, x: 0, transition: { duration: 0.2 } } };
 
 const RANKS = [
   'Recruit', 'Private', 'Private First Class', 'Lance Corporal', 'Corporal',
@@ -477,7 +486,7 @@ export default function Personnel() {
   const civilians = personnel.filter((p) => p.status === 'Civilian').length;
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-wrap">
@@ -539,14 +548,16 @@ export default function Personnel() {
         ) : personnel.length === 0 ? (
           <div className="py-12 text-center text-[#1a2f55] font-mono text-xs">NO PERSONNEL FOUND</div>
         ) : (
-          personnel.map((person) => {
+          <motion.div variants={listContainer} initial="initial" animate="animate">
+          {personnel.map((person) => {
             const rankIdx = RANKS.indexOf(person.rank);
             const canPromote = person.status === 'Marine' && rankIdx < RANKS.length - 1;
             const canDemote = person.status === 'Marine' && rankIdx > 0;
 
             return (
-              <div
+              <motion.div
                 key={person.id}
+                variants={listItem}
                 className="flex items-center gap-4 px-4 py-3 border-b border-[#162448]/50 last:border-0 hover:bg-[#0f1c35]/60 transition-colors group"
               >
                 <div className={`w-1 h-8 rounded-full shrink-0 ${person.status === 'Marine' ? 'bg-[#3b82f6]' : 'bg-[#1a2f55]'}`} />
@@ -642,9 +653,10 @@ export default function Personnel() {
                     </button>
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
-          })
+          })}
+          </motion.div>
         )}
       </div>
 
@@ -723,6 +735,6 @@ export default function Personnel() {
       {modal === 'awards' && selected && (
         <AwardModal person={selected} onClose={closeModal} onUpdate={fetchPersonnel} />
       )}
-    </div>
+    </motion.div>
   );
 }

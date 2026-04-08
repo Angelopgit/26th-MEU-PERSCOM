@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Map, ClipboardList, LogOut,
@@ -105,7 +106,11 @@ export default function Sidebar({ open, onClose }) {
             }
           >
             {({ isActive }) => (
-              <>
+              <motion.span
+                className="flex items-center gap-3 w-full"
+                whileHover={{ x: 3 }}
+                transition={{ duration: 0.12 }}
+              >
                 {isActive && (
                   <span
                     className="absolute inset-0 pointer-events-none"
@@ -114,7 +119,7 @@ export default function Sidebar({ open, onClose }) {
                 )}
                 <item.icon size={15} className={`shrink-0 relative ${isActive ? 'text-[#60a5fa]' : ''}`} />
                 <span className="font-medium relative">{item.label}</span>
-              </>
+              </motion.span>
             )}
           </NavLink>
         ))}

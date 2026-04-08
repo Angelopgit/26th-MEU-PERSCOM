@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -6,6 +7,14 @@ import {
   Loader2, AlertCircle, ChevronDown, X, User, FlaskConical,
 } from 'lucide-react';
 import api from '../utils/api';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
+const listContainer = { animate: { transition: { staggerChildren: 0.04 } } };
+const listItem = { initial: { opacity: 0, x: -8 }, animate: { opacity: 1, x: 0, transition: { duration: 0.2 } } };
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS = {
@@ -440,7 +449,7 @@ export default function Applications() {
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div {...pageAnim} className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -546,13 +555,13 @@ export default function Applications() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#0d1830]">
+                <motion.tbody className="divide-y divide-[#0d1830]" variants={listContainer} initial="initial" animate="animate">
                   {apps.map(app => {
                     const avatarUrl = app.discord_avatar
                       ? `https://cdn.discordapp.com/avatars/${app.discord_id}/${app.discord_avatar}.png?size=32`
                       : null;
                     return (
-                      <tr key={app.id} className="hover:bg-[#0d1830]/60 transition-colors">
+                      <motion.tr key={app.id} variants={listItem} className="hover:bg-[#0d1830]/60 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {avatarUrl
@@ -599,10 +608,10 @@ export default function Applications() {
                             )}
                           </div>
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
 
@@ -659,6 +668,6 @@ export default function Applications() {
           onSubmitted={() => { fetchApps(); api.get('/applications').then(r => setAllApps(r.data)).catch(() => {}); }}
         />
       )}
-    </div>
+    </motion.div>
   );
 }

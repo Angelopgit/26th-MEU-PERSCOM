@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import {
   Plus, Edit2, Trash2, Loader2, Calendar, CheckCircle, Radio,
   Image, X, Users, ChevronDown, ChevronUp, UserCheck, UserMinus, Clock,
@@ -8,6 +9,14 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
+const listContainer = { animate: { transition: { staggerChildren: 0.04 } } };
+const listItem = { initial: { opacity: 0, x: -8 }, animate: { opacity: 1, x: 0, transition: { duration: 0.2 } } };
 
 /**
  * Given a date string (YYYY-MM-DD) and time string (HH:MM) stored in Eastern
@@ -450,7 +459,7 @@ export default function Operations() {
   const trainingsCount = ops.filter(o => o.type === 'Training').length;
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-4xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="space-y-2">
@@ -516,12 +525,18 @@ export default function Operations() {
       ) : filtered.length === 0 ? (
         <div className="card py-16 text-center text-[#1a2f55] font-mono text-xs">NOTHING FOUND</div>
       ) : (
-        <div className="space-y-3">
+        <motion.div className="space-y-3" variants={listContainer} initial="initial" animate="animate">
           {filtered.map((op) => {
             const status = opStatus(op);
             const isTraining = op.type === 'Training';
             return (
-              <div key={op.id} className="card p-4 group">
+              <motion.div
+                key={op.id}
+                variants={listItem}
+                className="card p-4 group"
+                whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+                transition={{ duration: 0.15 }}
+              >
                 <div className="flex items-start gap-4">
                   <div className={`w-9 h-9 rounded-sm border flex items-center justify-center shrink-0 mt-0.5 ${
                     status === 'ACTIVE'
@@ -601,10 +616,10 @@ export default function Operations() {
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
 
       {modal === 'create' && (
@@ -645,6 +660,6 @@ export default function Operations() {
           </div>
         </Modal>
       )}
-    </div>
+    </motion.div>
   );
 }

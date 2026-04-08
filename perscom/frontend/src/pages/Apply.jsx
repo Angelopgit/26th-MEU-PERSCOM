@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
   AlertCircle, Loader2, CheckCircle2, ExternalLink, ChevronLeft,
@@ -734,7 +735,11 @@ export default function Apply() {
       <div className="absolute bottom-6 right-6 text-[#162448] font-mono text-[10px] z-10">RECRUIT PORTAL</div>
 
       {/* Content */}
-      <div className="relative w-full max-w-lg z-10">
+      <motion.div
+        className="relative w-full max-w-lg z-10"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } }}
+      >
         {/* Step progress indicator */}
         {step > 0 && step < 3 && (
           <div className="flex items-center gap-2 mb-6 justify-center">
@@ -788,7 +793,7 @@ export default function Apply() {
             onCheckStatus={() => setShowStatus(true)}
           />
         )}
-      </div>
+      </motion.div>
 
       {/* Status modal */}
       {showStatus && <StatusModal onClose={() => setShowStatus(false)} />}

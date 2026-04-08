@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import {
   FileText, Package, Plus, Edit2, Trash2, Loader2,
   Bold, Italic, X, ChevronDown, ChevronUp, Image,
@@ -8,6 +9,12 @@ import { format, parseISO } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
 import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
 
 // ASSET_BASE already resolves to the Railway origin in production,
@@ -686,7 +693,7 @@ export default function Documents() {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-4xl">
       <div className="flex items-center gap-2">
         <FileText size={14} className="text-[#3b82f6]" />
         <span className="section-header text-sm">Unit Documents</span>
@@ -838,6 +845,6 @@ export default function Documents() {
           </div>
         </Modal>
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -1,10 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import {
   Settings as SettingsIcon, Upload, Trash2, Loader2, Image, CheckCircle,
   Users, RefreshCw, Shield, TrendingUp, Plus, X, Lock,
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
 import { ASSET_BASE, imgUrl } from '../utils/imgUrl';
 
 const ROLE_LABELS = {
@@ -351,7 +358,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <motion.div {...pageAnim} className="space-y-5 max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-2">
         <SettingsIcon size={14} className="text-[#3b82f6]" />
@@ -676,6 +683,6 @@ export default function Settings() {
           To reset all data, run: <code className="text-[#3b82f6]">npm run seed</code> in the backend directory.
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }

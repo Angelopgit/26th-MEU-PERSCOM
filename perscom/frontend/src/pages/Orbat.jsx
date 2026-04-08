@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { Target, Search, X, Loader2, ChevronRight, User } from 'lucide-react';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
 
 const RANK_ABBREV = {
   'Recruit': 'Rct', 'Private': 'Pvt', 'Private First Class': 'PFC',
@@ -303,7 +310,7 @@ export default function Orbat() {
   const fgStyle = { transform: `translate(${offset.x * 0.15}px, ${offset.y * 0.15}px)`, transition: 'transform 0.15s ease-out' };
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-5xl">
       {/* Inject keyframe animation */}
       <style>{`
         @keyframes fadeSlideIn {
@@ -526,6 +533,6 @@ export default function Orbat() {
           saving={saving}
         />
       )}
-    </div>
+    </motion.div>
   );
 }

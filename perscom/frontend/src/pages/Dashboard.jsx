@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import {
   Users, UserCheck, AlertTriangle, Map, Activity, Megaphone,
   Plus, Trash2, Loader2, Camera, X, ChevronLeft, ChevronRight, Clock,
@@ -11,6 +12,13 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import { ASSET_BASE as BACKEND } from '../utils/imgUrl';
+import { SkeletonCard } from '../components/ui/Skeleton';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
 
 const ACTION_LABELS = {
   PERSONNEL_ADDED:      'Added',
@@ -48,7 +56,11 @@ function StatCard({ label, value, icon: Icon, color = 'green', sub, delta, delta
   };
   const s = styles[color] || styles.green;
   return (
-    <div className="card p-4">
+    <motion.div
+      className="card p-4"
+      whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+      transition={{ duration: 0.15 }}
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="section-header">{label}</span>
         <div className={`w-8 h-8 flex items-center justify-center rounded-sm border ${s.wrap}`}>
@@ -62,7 +74,7 @@ function StatCard({ label, value, icon: Icon, color = 'green', sub, delta, delta
           <DeltaBadge delta={delta} zeroLabel={deltaZeroLabel} />
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -411,8 +423,14 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-[#3b82f6] font-mono text-xs animate-pulse tracking-widest">LOADING DATA...</div>
+      <div className="space-y-4 max-w-6xl">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3 space-y-4"><SkeletonCard /><SkeletonCard /></div>
+          <div className="lg:col-span-2 space-y-4"><SkeletonCard /><SkeletonCard /></div>
+        </div>
       </div>
     );
   }
@@ -421,7 +439,7 @@ export default function Dashboard() {
   const ann = stats?.latestAnnouncement;
 
   return (
-    <div className="space-y-4 max-w-6xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-6xl">
       {/* Stats — full width */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -573,6 +591,6 @@ export default function Dashboard() {
           </form>
         </Modal>
       )}
-    </div>
+    </motion.div>
   );
 }

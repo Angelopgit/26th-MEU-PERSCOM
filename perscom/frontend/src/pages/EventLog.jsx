@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { ScrollText, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import api from '../utils/api';
+
+const pageAnim = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0 },
+};
+const listContainer = { animate: { transition: { staggerChildren: 0.03 } } };
+const listItem = { initial: { opacity: 0, x: -8 }, animate: { opacity: 1, x: 0, transition: { duration: 0.15 } } };
 
 const ACTION_META = {
   PERSONNEL_ADDED:      { label: 'Personnel Added',    cls: 'badge-green'  },
@@ -82,7 +91,7 @@ export default function EventLog() {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <motion.div {...pageAnim} className="space-y-4 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
@@ -147,9 +156,9 @@ export default function EventLog() {
         <div className="card py-16 text-center text-[#1a2f55] font-mono text-xs">NO LOG ENTRIES FOUND</div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="divide-y divide-[#162448]/40">
+          <motion.div className="divide-y divide-[#162448]/40" variants={listContainer} initial="initial" animate="animate">
             {rows.map((row) => (
-              <div key={row.id} className="flex items-start gap-3 px-4 py-3 hover:bg-[#0f1c35]/40 transition-colors">
+              <motion.div key={row.id} variants={listItem} className="flex items-start gap-3 px-4 py-3 hover:bg-[#0f1c35]/40 transition-colors">
                 {/* Timestamp */}
                 <div className="text-[#1a2f55] font-mono text-[10px] w-28 shrink-0 mt-0.5 leading-relaxed">
                   <div>{format(parseISO(row.created_at), 'MMM dd, yyyy')}</div>
@@ -170,9 +179,9 @@ export default function EventLog() {
                 <div className="text-[#4a6fa5] font-mono text-[10px] shrink-0 text-right mt-0.5">
                   {row.display_name || '—'}
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -228,6 +237,6 @@ export default function EventLog() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

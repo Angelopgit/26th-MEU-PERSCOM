@@ -196,3 +196,37 @@
   .rich-content ul     { @apply list-disc pl-5 mb-2; }
   .rich-content ol     { @apply list-decimal pl-5 mb-2; }
 }
+
+/* ── Design tokens & animation keyframes ────────────────────────────────────── */
+:root {
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 60px;
+  --bottom-nav-height: 64px;
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --shadow-accent: 0 0 20px rgba(74,158,255,0.2);
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #1a2035 25%, #1e2845 50%, #1a2035 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

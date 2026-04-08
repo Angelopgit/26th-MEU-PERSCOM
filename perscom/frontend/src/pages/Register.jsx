@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Loader2, UserPlus } from 'lucide-react';
 import api from '../utils/api';
@@ -77,7 +78,11 @@ export default function Register() {
         26TH MEU (SOC)
       </div>
 
-      <div className="relative w-full max-w-xs">
+      <motion.div
+        className="relative w-full max-w-xs"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } }}
+      >
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex flex-col items-center">
@@ -184,7 +189,7 @@ export default function Register() {
             </>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
