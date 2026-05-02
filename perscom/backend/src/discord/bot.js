@@ -128,25 +128,33 @@ async function startBot() {
         }
       }
 
-      // ── DI role removed → revoke DI flag ──────────────────────────────────
+      // ── DI role removed → revoke DI flag + downgrade PERSCOM role ──────────
       const DISCORD_ROLE_DI = process.env.DISCORD_ROLE_DI;
       if (DISCORD_ROLE_DI && removedRoles.has(DISCORD_ROLE_DI)) {
         const db = getDb();
         const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(newMember.user.id);
         if (user && user.is_di) {
-          db.prepare('UPDATE users SET is_di = 0 WHERE id = ?').run(user.id);
+          // Only downgrade role if they don't still hold the S-1 (moderator) Discord role
+          const stillHasS1 = DISCORD_ROLE_MODERATOR && newMember.roles.cache.has(DISCORD_ROLE_MODERATOR);
+          const sql = (!stillHasS1 && user.role === 'moderator')
+            ? "UPDATE users SET is_di = 0, role = 'marine' WHERE id = ?"
+            : 'UPDATE users SET is_di = 0 WHERE id = ?';
+          db.prepare(sql).run(user.id);
           logActivity('ROLE_CHANGED', `${user.display_name}: DI role removed`, null);
           console.log(`[BOT] ${user.display_name} DI flag revoked — DI Discord role removed`);
         }
       }
 
-      // ── DI role added → grant DI flag ─────────────────────────────────────
+      // ── DI role added → grant DI flag + promote PERSCOM role ──────────────
       if (DISCORD_ROLE_DI && addedRoles.has(DISCORD_ROLE_DI)) {
         const db = getDb();
         const user = db.prepare('SELECT * FROM users WHERE discord_id = ?').get(newMember.user.id);
         if (user && !user.is_di) {
-          db.prepare('UPDATE users SET is_di = 1 WHERE id = ?').run(user.id);
-          logActivity('ROLE_CHANGED', `${user.display_name}: DI role granted`, null);
+          const sql = user.role === 'marine'
+            ? "UPDATE users SET is_di = 1, role = 'moderator' WHERE id = ?"
+            : 'UPDATE users SET is_di = 1 WHERE id = ?';
+          db.prepare(sql).run(user.id);
+          logActivity('ROLE_CHANGED', `${user.display_name}: DI role granted${user.role === 'marine' ? ', promoted to moderator' : ''}`, null);
           console.log(`[BOT] ${user.display_name} granted DI flag — DI Discord role added`);
         }
       }
@@ -270,6 +278,16 @@ async function startBot() {
 
   client.once('ready', () => {
     console.log(`[PERSCOM] Discord bot online as ${client.user.tag}`);
+    // Promote any DI-flagged users who are still sitting on 'marine' role
+    try {
+      const db = getDb();
+      const result = db.prepare("UPDATE users SET role = 'moderator' WHERE is_di = 1 AND role = 'marine'").run();
+      if (result.changes > 0) {
+        console.log(`[BOT] Startup sync: promoted ${result.changes} DI user(s) to moderator`);
+      }
+    } catch (err) {
+      console.error('[BOT] DI startup sync error:', err.message);
+    }
   });
 
   await client.login(process.env.DISCORD_BOT_TOKEN);
